@@ -164,9 +164,14 @@ flowchart TD
 ### Classification Criteria:
 - **`WON`:** The candidate set contains exactly 1 word and feedback is all-green.
 - **`PROVED_WIN`:** All leaves in the game tree reach $|C| = 1$ at depth $\le k_{\text{remaining}}$ without exceeding any resource limit.
-- **`DISPROVED_WIN`:** The search explored all valid branch permutations without truncation and established that for every possible guess sequence, there exists at least one branch requiring $> k_{\text{remaining}}$ turns.
-- **`UNRESOLVED_RESOURCE_LIMIT`:** Resource limits (e.g. 500ms timeout or node cap) truncated tree exploration. The solver reports the best heuristic guess found so far and explicitly declares that a complete proof could not be established.
+- **`DISPROVED_WIN`:** The search explored all valid branch permutations across the complete legal guess space without truncation and established that for every possible guess sequence, there exists at least one branch requiring $> k_{\text{remaining}}$ turns.
+- **`UNRESOLVED_RESOURCE_LIMIT`:** Resource limits (e.g. 500ms timeout, node cap, depth limit, or `maxBranchCandidates` move-pool truncation) truncated tree exploration. The solver reports the best heuristic guess found so far and explicitly declares that an exhaustive proof could not be established.
 - **`GLOBAL_OPTIMALITY`:** Never claimed for full Wordle unless mathematically established and cited from literature for identical datasets and rules.
+
+### 6.1 Move-Space Truncation & Guarantee Rigor
+- **Branch Truncation Safety:** When `maxBranchCandidates` limits the examined guesses to a subset $G' \subset G$, unexamined moves in $G \setminus G'$ may exist. Even if all examined moves in $G'$ fail to guarantee a win within $k$, the solver **never** claims `DISPROVED_WIN` across all legal moves. It strictly reports `UNRESOLVED_RESOURCE_LIMIT`.
+- **Six-Turn Guarantee Boundary:** A 6-turn guarantee is claimed only when an exhaustive strategy tree has been mathematically verified across all 2,315 answers under identical rules. In routine run-time play, opening moves are labeled `HEURISTIC` (Maximum Information Gain), and guarantees are asserted strictly when an active end-game state is proven.
+- **Exhaustive Reference Minimax Parity:** Evaluated in automated test suites (`tests/unit/search-reference.test.ts`), verifying exact parity between bounded alpha-beta minimax and unpruned brute-force minimax across synthetic state spaces.
 
 ---
 

@@ -38,9 +38,9 @@ const STATUS_LABELS: Record<
     description: 'Search stopped due to budget limits. Recommendation is a sound heuristic choice, not an exhaustive proof.',
   },
   HEURISTIC: {
-    label: 'Optimal Information Gain',
+    label: 'Information Gain Heuristic',
     className: 'status-heuristic',
-    description: 'Maximizes Shannon entropy to partition remaining candidates most evenly.',
+    description: 'Greedily maximizes Shannon entropy across examined moves to partition remaining candidates.',
   },
 };
 

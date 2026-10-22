@@ -9,7 +9,7 @@ export const Header: React.FC = () => {
           <div>
             <h1>Wordle Solver</h1>
             <p className="subtitle">
-              Fast Information Gain &amp; Guaranteed End-Game Lookahead
+              Fast Information Gain &amp; Verified End-Game Lookahead
             </p>
           </div>
         </div>
