@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
+  ContradictionDiagnosis,
   RecommendationResult,
   SearchBudget,
   StrategyType,
   TurnRecord,
   UnifiedRecommendation,
+  diagnoseContradiction,
   filterByHistory,
   getBoundedSearchRecommendation,
   getFastRecommendation,
@@ -19,6 +21,7 @@ export interface UseSolverWorkerReturn {
   readonly remainingCandidates: readonly string[];
   readonly candidatesCount: number;
   readonly isContradiction: boolean;
+  readonly contradictionDiagnosis: ContradictionDiagnosis | null;
   readonly error: string | null;
   readonly compareData: {
     readonly fastResult: RecommendationResult;
@@ -35,35 +38,42 @@ export interface UseSolverWorkerReturn {
     budget?: Partial<SearchBudget>,
     turnsRemaining?: number
   ) => void;
+  readonly cancelSolve: () => void;
+  readonly resetSolve: () => void;
   readonly clearCompare: () => void;
 }
+
+// Pre-cached initial recommendation for the empty-board state (<1ms)
+const INITIAL_REC: UnifiedRecommendation = getUnifiedRecommendation(
+  INITIAL_ANSWERS,
+  ALL_VALID_GUESSES,
+  6
+);
 
 export function useSolverWorker(): UseSolverWorkerReturn {
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef<number>(0);
-
-  // Pre-cached initial recommendation for the empty-board state (<1ms)
-  const initialRec = getUnifiedRecommendation(INITIAL_ANSWERS, ALL_VALID_GUESSES, 6);
+  const loadingRef = useRef<boolean>(false);
 
   const [loading, setLoading] = useState<boolean>(false);
   const [recommendation, setRecommendation] = useState<
     RecommendationResult | UnifiedRecommendation | null
-  >(initialRec);
+  >(INITIAL_REC);
   const [remainingCandidates, setRemainingCandidates] = useState<readonly string[]>(INITIAL_ANSWERS);
   const [candidatesCount, setCandidatesCount] = useState<number>(INITIAL_ANSWERS.length);
   const [isContradiction, setIsContradiction] = useState<boolean>(false);
+  const [contradictionDiagnosis, setContradictionDiagnosis] = useState<ContradictionDiagnosis | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [compareData, setCompareData] = useState<{
     readonly fastResult: RecommendationResult;
     readonly deeperResult: RecommendationResult;
   } | null>(null);
 
-  // Initialize Web Worker with graceful fallback
-  useEffect(() => {
-    let worker: Worker | null = null;
+  // Instantiates a fresh Web Worker and binds message listeners
+  const createWorkerInstance = useCallback((): Worker | null => {
     try {
       if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
-        worker = new Worker(new URL('../worker/solver.worker.ts', import.meta.url), {
+        const worker = new Worker(new URL('../worker/solver.worker.ts', import.meta.url), {
           type: 'module',
         });
 
@@ -74,6 +84,7 @@ export function useSolverWorker(): UseSolverWorkerReturn {
             return;
           }
 
+          loadingRef.current = false;
           setLoading(false);
 
           if (res.type === 'SOLVE_SUCCESS') {
@@ -81,6 +92,7 @@ export function useSolverWorker(): UseSolverWorkerReturn {
             setRemainingCandidates(res.remainingCandidates);
             setCandidatesCount(res.candidatesCount);
             setIsContradiction(res.isContradiction);
+            setContradictionDiagnosis(res.contradictionDiagnosis ?? null);
             setError(null);
           } else if (res.type === 'COMPARE_SUCCESS') {
             setCompareData({
@@ -97,26 +109,32 @@ export function useSolverWorker(): UseSolverWorkerReturn {
         };
 
         worker.onerror = (err) => {
+          loadingRef.current = false;
           setLoading(false);
           setError(`Worker execution error: ${err.message || 'unknown error'}`);
         };
 
-        workerRef.current = worker;
+        return worker;
       }
     } catch {
-      // Fallback: worker not supported (e.g. test environment or file:// protocol)
-      workerRef.current = null;
+      // Fallback: worker not supported (e.g. test environment)
     }
+    return null;
+  }, []);
+
+  // Initialize Web Worker on mount
+  useEffect(() => {
+    workerRef.current = createWorkerInstance();
 
     return () => {
-      if (worker) {
-        worker.terminate();
+      if (workerRef.current) {
+        workerRef.current.terminate();
         workerRef.current = null;
       }
     };
-  }, []);
+  }, [createWorkerInstance]);
 
-  // Request solve with stale-state supersession
+  // Request solve with cooperative termination and immediate recalculation
   const requestSolve = useCallback(
     (
       history: readonly TurnRecord[],
@@ -125,61 +143,130 @@ export function useSolverWorker(): UseSolverWorkerReturn {
       turnsRemaining: number = 6 - history.length
     ) => {
       const nextId = ++requestIdRef.current;
-      setLoading(true);
       setError(null);
 
-      const worker = workerRef.current;
-      if (worker) {
-        const req: WorkerRequest = {
-          id: nextId,
-          type: 'SOLVE',
-          history,
-          strategy,
-          budget,
-          turnsRemaining,
-        };
-        worker.postMessage(req);
-      } else {
-        // Synchronous fallback when Web Worker is unavailable (e.g., in unit tests)
-        try {
-          const filterResult = filterByHistory(INITIAL_ANSWERS, history);
-          const candidates = filterResult.candidates;
-          let result: RecommendationResult | UnifiedRecommendation;
+      // Fast synchronous candidate filtering on main thread
+      const filterResult = filterByHistory(INITIAL_ANSWERS, history);
+      const candidates = filterResult.candidates;
 
-          if (!strategy || strategy === 'UNIFIED') {
-            result = getUnifiedRecommendation(
-              candidates,
-              ALL_VALID_GUESSES,
-              turnsRemaining
-            );
-          } else if (strategy === 'FAST_ENTROPY') {
-            result = getFastRecommendation(candidates, ALL_VALID_GUESSES);
-          } else {
-            result = getBoundedSearchRecommendation(
-              candidates,
-              ALL_VALID_GUESSES,
-              budget,
-              turnsRemaining
-            );
-          }
+      setRemainingCandidates(candidates);
+      setCandidatesCount(candidates.length);
+      setIsContradiction(filterResult.isContradiction);
 
-          if (nextId === requestIdRef.current) {
-            setLoading(false);
-            setRecommendation(result);
-            setRemainingCandidates(candidates);
-            setCandidatesCount(candidates.length);
-            setIsContradiction(filterResult.isContradiction);
-            setError(null);
-          }
-        } catch (err) {
-          if (nextId === requestIdRef.current) {
-            setLoading(false);
-            setError(err instanceof Error ? err.message : String(err));
-          }
+      // 1. Contradiction State Check
+      if (filterResult.isContradiction) {
+        // Abort any in-flight worker immediately
+        if (workerRef.current && loadingRef.current) {
+          workerRef.current.terminate();
+          workerRef.current = createWorkerInstance();
+        }
+        loadingRef.current = false;
+        setLoading(false);
+        const diagnosis = diagnoseContradiction(history, INITIAL_ANSWERS, ALL_VALID_GUESSES);
+        setContradictionDiagnosis(diagnosis);
+        let contradictionRec: RecommendationResult | UnifiedRecommendation;
+        if (strategy === 'FAST_ENTROPY') {
+          contradictionRec = getFastRecommendation([], ALL_VALID_GUESSES);
+        } else if (strategy === 'BOUNDED_MINIMAX') {
+          contradictionRec = getBoundedSearchRecommendation([], ALL_VALID_GUESSES, budget, turnsRemaining);
+        } else {
+          contradictionRec = getUnifiedRecommendation([], ALL_VALID_GUESSES, turnsRemaining);
+        }
+        setRecommendation(contradictionRec);
+        return;
+      }
+
+      setContradictionDiagnosis(null);
+
+      // 2. Initial Empty-Board Cache Check
+      if (history.length === 0) {
+        if (workerRef.current && loadingRef.current) {
+          workerRef.current.terminate();
+          workerRef.current = createWorkerInstance();
+        }
+        loadingRef.current = false;
+        setLoading(false);
+        setRecommendation(INITIAL_REC);
+        return;
+      }
+
+      // 3. Round Completion Check (5 confirmed Green tiles on any turn)
+      const isWon = history.some((turn) => turn.feedback.every((tile) => tile === 2));
+      if (isWon) {
+        if (workerRef.current && loadingRef.current) {
+          workerRef.current.terminate();
+          workerRef.current = createWorkerInstance();
+        }
+        loadingRef.current = false;
+        setLoading(false);
+        setRecommendation(null);
+        return;
+      }
+
+      // 4. Invalidate old recommendation so it is never shown as current during calculation
+      const wasLoading = loadingRef.current;
+      setRecommendation(null);
+      loadingRef.current = true;
+      setLoading(true);
+
+      // 5. Hard search cancellation: terminate running worker to stop obsolete CPU work
+      if (workerRef.current) {
+        if (wasLoading) {
+          workerRef.current.terminate();
+          workerRef.current = createWorkerInstance();
+        }
+
+        const worker = workerRef.current;
+        if (worker) {
+          const req: WorkerRequest = {
+            id: nextId,
+            type: 'SOLVE',
+            history,
+            strategy,
+            budget,
+            turnsRemaining,
+          };
+          worker.postMessage(req);
+          return;
+        }
+      }
+
+      // Synchronous fallback when Web Worker is unavailable (e.g., in unit tests)
+      try {
+        let result: RecommendationResult | UnifiedRecommendation;
+
+        if (!strategy || strategy === 'UNIFIED') {
+          result = getUnifiedRecommendation(
+            candidates,
+            ALL_VALID_GUESSES,
+            turnsRemaining
+          );
+        } else if (strategy === 'FAST_ENTROPY') {
+          result = getFastRecommendation(candidates, ALL_VALID_GUESSES);
+        } else {
+          result = getBoundedSearchRecommendation(
+            candidates,
+            ALL_VALID_GUESSES,
+            budget,
+            turnsRemaining
+          );
+        }
+
+        if (nextId === requestIdRef.current) {
+          loadingRef.current = false;
+          setLoading(false);
+          setRecommendation(result);
+          setError(null);
+        }
+      } catch (err) {
+        if (nextId === requestIdRef.current) {
+          loadingRef.current = false;
+          setLoading(false);
+          setError(err instanceof Error ? err.message : String(err));
         }
       }
     },
-    []
+    [createWorkerInstance]
   );
 
   // Request strategy comparison
@@ -190,6 +277,11 @@ export function useSolverWorker(): UseSolverWorkerReturn {
       turnsRemaining: number = 6 - history.length
     ) => {
       const nextId = ++requestIdRef.current;
+      if (workerRef.current && loadingRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = createWorkerInstance();
+      }
+      loadingRef.current = true;
       setLoading(true);
       setError(null);
 
@@ -217,6 +309,7 @@ export function useSolverWorker(): UseSolverWorkerReturn {
           );
 
           if (nextId === requestIdRef.current) {
+            loadingRef.current = false;
             setLoading(false);
             setCompareData({ fastResult, deeperResult });
             setRemainingCandidates(candidates);
@@ -226,6 +319,7 @@ export function useSolverWorker(): UseSolverWorkerReturn {
           }
         } catch (err) {
           if (nextId === requestIdRef.current) {
+            loadingRef.current = false;
             setLoading(false);
             setError(err instanceof Error ? err.message : String(err));
           }
@@ -234,6 +328,36 @@ export function useSolverWorker(): UseSolverWorkerReturn {
     },
     []
   );
+
+  // Cancel any active solve request and terminate worker
+  const cancelSolve = useCallback(() => {
+    requestIdRef.current++;
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = createWorkerInstance();
+    }
+    loadingRef.current = false;
+    setLoading(false);
+    setRecommendation(null);
+  }, [createWorkerInstance]);
+
+  // Reset solver to initial empty-board state
+  const resetSolve = useCallback(() => {
+    requestIdRef.current++;
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = createWorkerInstance();
+    }
+    loadingRef.current = false;
+    setLoading(false);
+    setRecommendation(INITIAL_REC);
+    setRemainingCandidates(INITIAL_ANSWERS);
+    setCandidatesCount(INITIAL_ANSWERS.length);
+    setIsContradiction(false);
+    setContradictionDiagnosis(null);
+    setError(null);
+    setCompareData(null);
+  }, [createWorkerInstance]);
 
   const clearCompare = useCallback(() => {
     setCompareData(null);
@@ -245,10 +369,13 @@ export function useSolverWorker(): UseSolverWorkerReturn {
     remainingCandidates,
     candidatesCount,
     isContradiction,
+    contradictionDiagnosis,
     error,
     compareData,
     requestSolve,
     requestCompare,
+    cancelSolve,
+    resetSolve,
     clearCompare,
   };
 }

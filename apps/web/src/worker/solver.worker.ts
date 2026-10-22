@@ -1,5 +1,6 @@
 import {
   filterByHistory,
+  diagnoseContradiction,
   getBoundedSearchRecommendation,
   getFastRecommendation,
   getUnifiedRecommendation,
@@ -16,22 +17,48 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
     const candidates = filterResult.candidates;
 
     if (req.type === 'SOLVE') {
-      let result;
-      if (!req.strategy || req.strategy === 'UNIFIED') {
-        result = getUnifiedRecommendation(
-          candidates,
-          ALL_VALID_GUESSES,
-          req.turnsRemaining
+      let result = null;
+      let contradictionDiagnosis = null;
+
+      if (filterResult.isContradiction) {
+        contradictionDiagnosis = diagnoseContradiction(
+          req.history,
+          INITIAL_ANSWERS,
+          ALL_VALID_GUESSES
         );
-      } else if (req.strategy === 'FAST_ENTROPY') {
-        result = getFastRecommendation(candidates, ALL_VALID_GUESSES);
+        if (req.strategy === 'FAST_ENTROPY') {
+          result = getFastRecommendation([], ALL_VALID_GUESSES);
+        } else if (req.strategy === 'BOUNDED_MINIMAX') {
+          result = getBoundedSearchRecommendation(
+            [],
+            ALL_VALID_GUESSES,
+            req.budget,
+            req.turnsRemaining
+          );
+        } else {
+          result = getUnifiedRecommendation(
+            [],
+            ALL_VALID_GUESSES,
+            req.turnsRemaining
+          );
+        }
       } else {
-        result = getBoundedSearchRecommendation(
-          candidates,
-          ALL_VALID_GUESSES,
-          req.budget,
-          req.turnsRemaining
-        );
+        if (!req.strategy || req.strategy === 'UNIFIED') {
+          result = getUnifiedRecommendation(
+            candidates,
+            ALL_VALID_GUESSES,
+            req.turnsRemaining
+          );
+        } else if (req.strategy === 'FAST_ENTROPY') {
+          result = getFastRecommendation(candidates, ALL_VALID_GUESSES);
+        } else {
+          result = getBoundedSearchRecommendation(
+            candidates,
+            ALL_VALID_GUESSES,
+            req.budget,
+            req.turnsRemaining
+          );
+        }
       }
 
       const response: WorkerResponse = {
@@ -41,6 +68,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         remainingCandidates: candidates,
         candidatesCount: candidates.length,
         isContradiction: filterResult.isContradiction,
+        contradictionDiagnosis,
       };
 
       self.postMessage(response);

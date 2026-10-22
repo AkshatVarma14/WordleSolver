@@ -8,6 +8,7 @@ import {
   FilterHistoryResult,
   InvalidFeedbackError,
   TurnRecord,
+  ContradictionDiagnosis,
 } from './types';
 
 /**
@@ -154,6 +155,9 @@ export function filterByHistory(
 
   const remainingCount = currentCandidates.length;
   const isContradiction = initialCount > 0 && history.length > 0 && remainingCount === 0;
+  const earliestContradictionIndex = isContradiction
+    ? stepCounts.findIndex((count) => count === 0)
+    : null;
 
   return {
     candidates: currentCandidates,
@@ -161,5 +165,64 @@ export function filterByHistory(
     remainingCount,
     isContradiction,
     stepCounts,
+    earliestContradictionIndex,
+  };
+}
+
+/**
+ * Diagnoses a contradiction state, establishing whether the history is:
+ * 1. A vocabulary mismatch: matches exist in the comprehensive dictionary (valid-guesses), but not in the answer list.
+ * 2. An internal logical contradiction: no English word in any dictionary matches the feedback combination.
+ *
+ * @param history Array of submitted turn records
+ * @param answerVocabulary Curated answer words (e.g. 2,315 words)
+ * @param validGuessesVocabulary Comprehensive allowable vocabulary (e.g. 12,953 words)
+ * @returns ContradictionDiagnosis
+ */
+export function diagnoseContradiction(
+  history: readonly TurnRecord[],
+  answerVocabulary: readonly string[],
+  validGuessesVocabulary: readonly string[] = answerVocabulary
+): ContradictionDiagnosis {
+  const answerFilter = filterByHistory(answerVocabulary, history);
+  if (!answerFilter.isContradiction) {
+    return {
+      isContradiction: false,
+      earliestContradictionIndex: null,
+      earliestContradictingTurn: null,
+      isVocabularyMismatch: false,
+      matchingValidGuessesCount: answerFilter.remainingCount,
+      sampleValidMatches: [],
+      explanation: 'No contradiction detected.',
+    };
+  }
+
+  const earliestIdx = answerFilter.earliestContradictionIndex ?? 0;
+  const earliestTurn = history[earliestIdx] ?? null;
+
+  // Check if valid-guesses vocabulary still has matching words
+  const validFilter = filterByHistory(validGuessesVocabulary, history);
+  const matchingValidCount = validFilter.remainingCount;
+  const isVocabularyMismatch = matchingValidCount > 0;
+  const sampleValidMatches = isVocabularyMismatch
+    ? validFilter.candidates.slice(0, 3)
+    : [];
+
+  let explanation: string;
+  if (isVocabularyMismatch) {
+    const samplesStr = sampleValidMatches.map((w) => `'${w}'`).join(', ');
+    explanation = `The recorded feedback eliminates all ${answerVocabulary.length.toLocaleString()} words in the configured answer list. However, ${matchingValidCount} matching words exist in the comprehensive dictionary (${samplesStr}). The secret answer may be missing from the configured answer list, or an earlier row was marked incorrectly.`;
+  } else {
+    explanation = `The recorded feedback is internally contradictory. No known English word matches this feedback pattern. Row ${earliestIdx + 1} ('${earliestTurn?.guess ?? ''}') was the earliest observation to eliminate all candidate words.`;
+  }
+
+  return {
+    isContradiction: true,
+    earliestContradictionIndex: earliestIdx,
+    earliestContradictingTurn: earliestTurn,
+    isVocabularyMismatch,
+    matchingValidGuessesCount: matchingValidCount,
+    sampleValidMatches,
+    explanation,
   };
 }

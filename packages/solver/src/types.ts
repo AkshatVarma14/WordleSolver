@@ -47,6 +47,19 @@ export interface TurnRecord {
 }
 
 /**
+ * Detailed diagnosis of a contradictory game state or vocabulary mismatch.
+ */
+export interface ContradictionDiagnosis {
+  readonly isContradiction: boolean;
+  readonly earliestContradictionIndex: number | null;
+  readonly earliestContradictingTurn: TurnRecord | null;
+  readonly isVocabularyMismatch: boolean;
+  readonly matchingValidGuessesCount: number;
+  readonly sampleValidMatches: readonly string[];
+  readonly explanation: string;
+}
+
+/**
  * Result of filtering candidates through historical turns.
  */
 export interface FilterHistoryResult {
@@ -55,6 +68,7 @@ export interface FilterHistoryResult {
   readonly remainingCount: number;
   readonly isContradiction: boolean;
   readonly stepCounts: readonly number[];
+  readonly earliestContradictionIndex?: number | null;
 }
 
 /**

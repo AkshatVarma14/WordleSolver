@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { Header } from './components/Header';
 import { Board } from './components/Board';
 import { Keyboard } from './components/Keyboard';
@@ -18,9 +18,19 @@ export const App: React.FC = () => {
     activeRowIndex,
     validationError,
     isComplete,
+    isWon,
+    editingRowIndex,
+    editingFeedback,
+    selectedTileIndex,
     addLetter,
     deleteLetter,
     toggleTileFeedback,
+    setTileFeedbackDirect,
+    setSelectedTileIndex,
+    moveSelectedTile,
+    startEditingRow,
+    saveRowEdit,
+    cancelRowEdit,
     submitTurn,
     clearCurrentRow,
     resetBoard,
@@ -32,14 +42,21 @@ export const App: React.FC = () => {
     recommendation,
     remainingCandidates,
     isContradiction,
+    contradictionDiagnosis,
     error: workerError,
     requestSolve,
+    resetSolve,
   } = useSolverWorker();
 
   // Execute unified solver whenever game observation history changes
   useEffect(() => {
     requestSolve(history);
   }, [history, requestSolve]);
+
+  const handleReset = useCallback(() => {
+    resetBoard();
+    resetSolve();
+  }, [resetBoard, resetSolve]);
 
   // Physical keyboard event listeners
   useEffect(() => {
@@ -52,21 +69,79 @@ export const App: React.FC = () => {
         return;
       }
 
+      // 1. Direct feedback shortcuts: 1 = Grey, 2 = Yellow, 3 = Green
+      if (e.key === '1') {
+        e.preventDefault();
+        setTileFeedbackDirect(0);
+        return;
+      }
+      if (e.key === '2') {
+        e.preventDefault();
+        setTileFeedbackDirect(1);
+        return;
+      }
+      if (e.key === '3') {
+        e.preventDefault();
+        setTileFeedbackDirect(2);
+        return;
+      }
+
+      // 2. Navigation shortcuts: Left / Right arrows
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        moveSelectedTile('left');
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        moveSelectedTile('right');
+        return;
+      }
+
+      // 3. Edit actions: Escape cancels, Enter saves or submits
+      if (e.key === 'Escape') {
+        if (editingRowIndex !== null) {
+          e.preventDefault();
+          cancelRowEdit();
+          return;
+        }
+      }
+
       if (e.key === 'Enter') {
         e.preventDefault();
-        submitTurn();
-      } else if (e.key === 'Backspace') {
-        e.preventDefault();
-        deleteLetter();
-      } else if (/^[a-zA-Z]$/.test(e.key)) {
-        e.preventDefault();
-        addLetter(e.key);
+        if (editingRowIndex !== null) {
+          saveRowEdit();
+        } else {
+          submitTurn();
+        }
+        return;
+      }
+
+      // 4. Letter typing (only when not editing an earlier row)
+      if (editingRowIndex === null && !isComplete) {
+        if (e.key === 'Backspace') {
+          e.preventDefault();
+          deleteLetter();
+        } else if (/^[a-zA-Z]$/.test(e.key)) {
+          e.preventDefault();
+          addLetter(e.key);
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [submitTurn, deleteLetter, addLetter]);
+  }, [
+    editingRowIndex,
+    isComplete,
+    setTileFeedbackDirect,
+    moveSelectedTile,
+    saveRowEdit,
+    cancelRowEdit,
+    submitTurn,
+    deleteLetter,
+    addLetter,
+  ]);
 
   return (
     <div className="app-layout">
@@ -91,11 +166,19 @@ export const App: React.FC = () => {
             currentGuess={currentGuess}
             currentFeedback={currentFeedback}
             activeRowIndex={activeRowIndex}
+            isComplete={isComplete}
+            editingRowIndex={editingRowIndex}
+            editingFeedback={editingFeedback}
+            selectedTileIndex={selectedTileIndex}
             onToggleTileFeedback={toggleTileFeedback}
+            onStartEditingRow={startEditingRow}
+            onSaveRowEdit={saveRowEdit}
+            onCancelRowEdit={cancelRowEdit}
+            onSelectTile={setSelectedTileIndex}
           />
 
           <StrategyControls
-            onReset={resetBoard}
+            onReset={handleReset}
             onClearRow={clearCurrentRow}
             onSubmitRow={submitTurn}
             hasRowInput={currentGuess.length > 0}
@@ -105,7 +188,7 @@ export const App: React.FC = () => {
             onKeyPress={addLetter}
             onDelete={deleteLetter}
             onSubmit={submitTurn}
-            disabled={isComplete}
+            disabled={isComplete || editingRowIndex !== null}
           />
         </div>
 
@@ -113,7 +196,12 @@ export const App: React.FC = () => {
           <RecommendationPanel
             recommendation={recommendation}
             loading={loading}
+            isWon={isWon}
+            turnsCount={history.length}
+            contradictionDiagnosis={contradictionDiagnosis}
             onAutofill={applyRecommendation}
+            onStartEditingRow={startEditingRow}
+            onReset={handleReset}
           />
 
           <CandidateViewer

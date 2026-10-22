@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ContradictionDiagnosis,
   GuaranteeStatus,
   RecommendationResult,
   StrategyType,
@@ -9,8 +10,13 @@ import {
 interface RecommendationPanelProps {
   readonly recommendation: RecommendationResult | UnifiedRecommendation | null;
   readonly loading: boolean;
+  readonly isWon?: boolean;
+  readonly turnsCount?: number;
+  readonly contradictionDiagnosis?: ContradictionDiagnosis | null;
   readonly strategy?: StrategyType | 'UNIFIED';
   readonly onAutofill: (word: string) => void;
+  readonly onStartEditingRow?: (rowIndex: number) => void;
+  readonly onReset?: () => void;
 }
 
 const STATUS_LABELS: Record<
@@ -47,9 +53,73 @@ const STATUS_LABELS: Record<
 export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
   recommendation,
   loading,
+  isWon = false,
+  turnsCount = 0,
+  contradictionDiagnosis = null,
   strategy = 'UNIFIED',
   onAutofill,
+  onStartEditingRow,
+  onReset,
 }) => {
+  // 1. Round Complete State: 5 confirmed Green tiles
+  if (isWon) {
+    return (
+      <section className="recommendation-card solved-card" aria-label="Round Complete">
+        <div className="rec-header">
+          <div className="rec-meta">
+            <span className="status-tag status-won">Puzzle Solved</span>
+          </div>
+          <div className="solved-body">
+            <h3>Round Complete</h3>
+            <p className="solved-meta">Target word successfully identified in {turnsCount} {turnsCount === 1 ? 'turn' : 'turns'}.</p>
+            {onReset && (
+              <button type="button" className="btn btn-primary" onClick={onReset}>
+                New Game
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // 2. Contradiction State
+  if (contradictionDiagnosis || recommendation?.isContradiction) {
+    const earliestIdx = contradictionDiagnosis?.earliestContradictionIndex;
+    const earliestTurn = contradictionDiagnosis?.earliestContradictingTurn;
+    const explanation =
+      contradictionDiagnosis?.explanation ??
+      'The recorded clues conflict with the configured answer vocabulary, leaving 0 matching words.';
+
+    return (
+      <div className="recommendation-card contradiction-card" role="alert">
+        <div className="rec-meta">
+          <span className="status-tag status-disproved">Contradiction Detected</span>
+          {contradictionDiagnosis?.isVocabularyMismatch && (
+            <span className="status-tag status-unresolved">Vocabulary Mismatch</span>
+          )}
+        </div>
+        <div className="contradiction-content">
+          <h3>No Candidates Remaining</h3>
+          <p>{explanation}</p>
+          {earliestIdx !== null && earliestIdx !== undefined && onStartEditingRow && (
+            <div className="contradiction-actions">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => onStartEditingRow(earliestIdx)}
+                title={`Edit Row ${earliestIdx + 1} feedback to resolve contradiction`}
+              >
+                Edit Row {earliestIdx + 1} {earliestTurn ? `('${earliestTurn.guess}')` : ''}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 3. Loading State
   if (loading) {
     return (
       <div className="recommendation-card loading-card" aria-live="polite" aria-busy="true">
@@ -66,15 +136,8 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
     );
   }
 
+  // 4. Empty State
   if (!recommendation || !recommendation.recommendedGuess) {
-    if (recommendation?.isContradiction) {
-      return (
-        <div className="recommendation-card contradiction-card" role="alert">
-          <h3>No Recommendation Available</h3>
-          <p>The feedback sequence contains contradictory information resulting in 0 candidates.</p>
-        </div>
-      );
-    }
     return (
       <div className="recommendation-card empty-card">
         <h3>Ready to Solve</h3>

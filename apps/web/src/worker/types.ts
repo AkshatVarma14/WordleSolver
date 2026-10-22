@@ -1,4 +1,5 @@
 import {
+  ContradictionDiagnosis,
   RecommendationResult,
   SearchBudget,
   StrategyType,
@@ -34,10 +35,11 @@ export type WorkerResponse =
   | {
       readonly id: number;
       readonly type: 'SOLVE_SUCCESS';
-      readonly result: RecommendationResult | UnifiedRecommendation;
+      readonly result: RecommendationResult | UnifiedRecommendation | null;
       readonly remainingCandidates: readonly string[];
       readonly candidatesCount: number;
       readonly isContradiction: boolean;
+      readonly contradictionDiagnosis?: ContradictionDiagnosis | null;
     }
   | {
       readonly id: number;
