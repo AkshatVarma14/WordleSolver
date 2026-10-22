@@ -8,6 +8,8 @@
   },
   "include": [
     "packages/*/src/**/*",
+    "apps/*/src/**/*",
+    "apps/*/tests/**/*",
     "tests/**/*",
     "vitest.config.ts"
   ]

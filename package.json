@@ -8,12 +8,18 @@
     "apps/*"
   ],
   "scripts": {
+    "dev": "npm run dev --workspace=web",
+    "build": "npm run build --workspaces --if-present",
+    "build:web": "npm run build --workspace=web",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
     "@types/node": "^26.6.5",
+    "jsdom": "^26.0.0",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"
   }
