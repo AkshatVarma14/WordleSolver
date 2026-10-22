@@ -367,7 +367,19 @@ export function minimaxWorstCase(
   } else if (bestWorstCase <= remainingBudget) {
     status = 'PROVED_WIN';
   } else {
-    status = 'DISPROVED_WIN';
+    // If the candidate guess pool was truncated by maxBranchCandidates, unexamined moves
+    // in allowedGuesses might exist. We cannot claim mathematical disproof across all legal guesses.
+    const poolSize =
+      context.allowedGuesses.length > 0
+        ? context.allowedGuesses.length
+        : numCandidates;
+    const isFullMoveSpaceExplored = branchGuesses.length >= poolSize;
+
+    if (isFullMoveSpaceExplored) {
+      status = 'DISPROVED_WIN';
+    } else {
+      status = 'UNRESOLVED_RESOURCE_LIMIT';
+    }
   }
 
   return {

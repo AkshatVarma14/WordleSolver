@@ -4,16 +4,18 @@ import {
   SearchBudget,
   StrategyType,
   TurnRecord,
+  UnifiedRecommendation,
   filterByHistory,
   getBoundedSearchRecommendation,
   getFastRecommendation,
+  getUnifiedRecommendation,
 } from '@wordle-solver/solver';
 import { ALL_VALID_GUESSES, INITIAL_ANSWERS } from '../data/words';
 import { WorkerRequest, WorkerResponse } from '../worker/types';
 
 export interface UseSolverWorkerReturn {
   readonly loading: boolean;
-  readonly recommendation: RecommendationResult | null;
+  readonly recommendation: RecommendationResult | UnifiedRecommendation | null;
   readonly remainingCandidates: readonly string[];
   readonly candidatesCount: number;
   readonly isContradiction: boolean;
@@ -24,7 +26,7 @@ export interface UseSolverWorkerReturn {
   } | null;
   readonly requestSolve: (
     history: readonly TurnRecord[],
-    strategy: StrategyType,
+    strategy?: StrategyType | 'UNIFIED',
     budget?: Partial<SearchBudget>,
     turnsRemaining?: number
   ) => void;
@@ -40,8 +42,13 @@ export function useSolverWorker(): UseSolverWorkerReturn {
   const workerRef = useRef<Worker | null>(null);
   const requestIdRef = useRef<number>(0);
 
+  // Pre-cached initial recommendation for the empty-board state (<1ms)
+  const initialRec = getUnifiedRecommendation(INITIAL_ANSWERS, ALL_VALID_GUESSES, 6);
+
   const [loading, setLoading] = useState<boolean>(false);
-  const [recommendation, setRecommendation] = useState<RecommendationResult | null>(null);
+  const [recommendation, setRecommendation] = useState<
+    RecommendationResult | UnifiedRecommendation | null
+  >(initialRec);
   const [remainingCandidates, setRemainingCandidates] = useState<readonly string[]>(INITIAL_ANSWERS);
   const [candidatesCount, setCandidatesCount] = useState<number>(INITIAL_ANSWERS.length);
   const [isContradiction, setIsContradiction] = useState<boolean>(false);
@@ -113,7 +120,7 @@ export function useSolverWorker(): UseSolverWorkerReturn {
   const requestSolve = useCallback(
     (
       history: readonly TurnRecord[],
-      strategy: StrategyType,
+      strategy?: StrategyType | 'UNIFIED',
       budget?: Partial<SearchBudget>,
       turnsRemaining: number = 6 - history.length
     ) => {
@@ -137,9 +144,15 @@ export function useSolverWorker(): UseSolverWorkerReturn {
         try {
           const filterResult = filterByHistory(INITIAL_ANSWERS, history);
           const candidates = filterResult.candidates;
-          let result: RecommendationResult;
+          let result: RecommendationResult | UnifiedRecommendation;
 
-          if (strategy === 'FAST_ENTROPY') {
+          if (!strategy || strategy === 'UNIFIED') {
+            result = getUnifiedRecommendation(
+              candidates,
+              ALL_VALID_GUESSES,
+              turnsRemaining
+            );
+          } else if (strategy === 'FAST_ENTROPY') {
             result = getFastRecommendation(candidates, ALL_VALID_GUESSES);
           } else {
             result = getBoundedSearchRecommendation(

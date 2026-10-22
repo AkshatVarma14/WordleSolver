@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { SearchBudget, StrategyType } from '@wordle-solver/solver';
 
 interface StrategyControlsProps {
-  readonly strategy: StrategyType;
-  readonly onSelectStrategy: (strat: StrategyType) => void;
-  readonly budget: SearchBudget;
-  readonly onUpdateBudget: (budget: SearchBudget) => void;
-  readonly onCompare: () => void;
+  readonly strategy?: StrategyType;
+  readonly onSelectStrategy?: (strat: StrategyType) => void;
+  readonly budget?: SearchBudget;
+  readonly onUpdateBudget?: (budget: SearchBudget) => void;
+  readonly onCompare?: () => void;
   readonly onReset: () => void;
   readonly onClearRow: () => void;
   readonly onSubmitRow: () => void;
@@ -14,7 +14,7 @@ interface StrategyControlsProps {
 }
 
 export const StrategyControls: React.FC<StrategyControlsProps> = ({
-  strategy,
+  strategy = 'FAST_ENTROPY',
   onSelectStrategy,
   budget,
   onUpdateBudget,
@@ -26,28 +26,48 @@ export const StrategyControls: React.FC<StrategyControlsProps> = ({
 }) => {
   const [showSettings, setShowSettings] = useState<boolean>(false);
 
+  const handleUpdateTimeout = (timeoutMs: number) => {
+    if (budget && onUpdateBudget) {
+      onUpdateBudget({ ...budget, timeoutMs });
+    }
+  };
+
+  const handleUpdateDepth = (maxDepth: number) => {
+    if (budget && onUpdateBudget) {
+      onUpdateBudget({ ...budget, maxDepth });
+    }
+  };
+
+  const handleUpdateBranchCandidates = (maxBranchCandidates: number) => {
+    if (budget && onUpdateBudget) {
+      onUpdateBudget({ ...budget, maxBranchCandidates });
+    }
+  };
+
   return (
-    <div className="controls-panel" aria-label="Strategy & Board Controls">
-      <div className="strategy-toggle-group" role="radiogroup" aria-label="Strategy Selection">
-        <button
-          type="button"
-          className={`btn-strategy ${strategy === 'FAST_ENTROPY' ? 'active' : ''}`}
-          onClick={() => onSelectStrategy('FAST_ENTROPY')}
-          role="radio"
-          aria-checked={strategy === 'FAST_ENTROPY'}
-        >
-          ⚡ Fast Entropy
-        </button>
-        <button
-          type="button"
-          className={`btn-strategy ${strategy === 'BOUNDED_MINIMAX' ? 'active' : ''}`}
-          onClick={() => onSelectStrategy('BOUNDED_MINIMAX')}
-          role="radio"
-          aria-checked={strategy === 'BOUNDED_MINIMAX'}
-        >
-          🌲 Bounded Deeper Search
-        </button>
-      </div>
+    <div className="controls-panel" aria-label="Game Board Controls">
+      {onSelectStrategy && (
+        <div className="strategy-toggle-group" role="radiogroup" aria-label="Strategy Selection">
+          <button
+            type="button"
+            className={`btn-strategy ${strategy === 'FAST_ENTROPY' ? 'active' : ''}`}
+            onClick={() => onSelectStrategy('FAST_ENTROPY')}
+            role="radio"
+            aria-checked={strategy === 'FAST_ENTROPY'}
+          >
+            Fast Entropy
+          </button>
+          <button
+            type="button"
+            className={`btn-strategy ${strategy === 'BOUNDED_MINIMAX' ? 'active' : ''}`}
+            onClick={() => onSelectStrategy('BOUNDED_MINIMAX')}
+            role="radio"
+            aria-checked={strategy === 'BOUNDED_MINIMAX'}
+          >
+            Bounded Deeper Search
+          </button>
+        </div>
+      )}
 
       <div className="action-buttons-group">
         {hasRowInput && (
@@ -58,7 +78,7 @@ export const StrategyControls: React.FC<StrategyControlsProps> = ({
               onClick={onSubmitRow}
               title="Apply this row and update candidate analysis"
             >
-              Submit Observation ↵
+              Submit Guess ↵
             </button>
             <button
               type="button"
@@ -71,24 +91,28 @@ export const StrategyControls: React.FC<StrategyControlsProps> = ({
           </>
         )}
 
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={onCompare}
-          title="Compare Fast Entropy and Bounded Minimax side-by-side"
-        >
-          ⚖️ Compare Strategies
-        </button>
+        {onCompare && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={onCompare}
+            title="Compare Fast Entropy and Bounded Minimax side-by-side"
+          >
+            Compare Strategies
+          </button>
+        )}
 
-        <button
-          type="button"
-          className="btn btn-ghost"
-          onClick={() => setShowSettings((prev) => !prev)}
-          title="Configure search limits"
-          aria-expanded={showSettings}
-        >
-          ⚙️ Settings
-        </button>
+        {budget && onUpdateBudget && (
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setShowSettings((prev) => !prev)}
+            title="Configure search limits"
+            aria-expanded={showSettings}
+          >
+            Settings
+          </button>
+        )}
 
         <button
           type="button"
@@ -96,11 +120,11 @@ export const StrategyControls: React.FC<StrategyControlsProps> = ({
           onClick={onReset}
           title="Reset board and restart analysis"
         >
-          🔄 Reset
+          Reset Board
         </button>
       </div>
 
-      {showSettings && (
+      {showSettings && budget && onUpdateBudget && (
         <div className="budget-settings-card" role="region" aria-label="Search Budget Configuration">
           <h4>Bounded Search Parameters</h4>
           <div className="setting-row">
@@ -112,9 +136,7 @@ export const StrategyControls: React.FC<StrategyControlsProps> = ({
               max={3000}
               step={50}
               value={budget.timeoutMs}
-              onChange={(e) =>
-                onUpdateBudget({ ...budget, timeoutMs: Math.max(50, Number(e.target.value)) })
-              }
+              onChange={(e) => handleUpdateTimeout(Math.max(50, Number(e.target.value)))}
             />
           </div>
 
@@ -123,9 +145,7 @@ export const StrategyControls: React.FC<StrategyControlsProps> = ({
             <select
               id="budget-depth"
               value={budget.maxDepth}
-              onChange={(e) =>
-                onUpdateBudget({ ...budget, maxDepth: Number(e.target.value) })
-              }
+              onChange={(e) => handleUpdateDepth(Number(e.target.value))}
             >
               <option value={1}>1 Ply (Greedy Lookahead)</option>
               <option value={2}>2 Plies (Recommended)</option>
@@ -142,12 +162,7 @@ export const StrategyControls: React.FC<StrategyControlsProps> = ({
               max={50}
               step={5}
               value={budget.maxBranchCandidates}
-              onChange={(e) =>
-                onUpdateBudget({
-                  ...budget,
-                  maxBranchCandidates: Math.max(5, Number(e.target.value)),
-                })
-              }
+              onChange={(e) => handleUpdateBranchCandidates(Math.max(5, Number(e.target.value)))}
             />
           </div>
         </div>

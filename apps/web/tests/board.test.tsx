@@ -69,6 +69,58 @@ describe('Web Board Interactions & Hooks', () => {
       expect(screen.getByLabelText(/Tile 1: S/i)).toBeDefined();
       expect(screen.getByLabelText(/Tile 2: L/i)).toBeDefined();
     });
+
+    it('Visually distinguishes the next tile to receive a letter with active cursor', () => {
+      // With 2 letters typed ('SL'), tile index 2 (position 3) should have .tile-cursor
+      const { container } = render(
+        <Board
+          history={[]}
+          currentGuess="SL"
+          currentFeedback={[0, 0, 0, 0, 0]}
+          activeRowIndex={0}
+          onToggleTileFeedback={() => {}}
+        />
+      );
+
+      const activeRow = container.querySelector('.board-row-active');
+      expect(activeRow).toBeDefined();
+
+      const tiles = activeRow?.querySelectorAll('.tile');
+      expect(tiles).toBeDefined();
+      expect(tiles?.length).toBe(5);
+
+      // Tile 0: 'S' (not cursor)
+      expect(tiles?.[0]?.className).not.toContain('tile-cursor');
+      // Tile 1: 'L' (not cursor)
+      expect(tiles?.[1]?.className).not.toContain('tile-cursor');
+      // Tile 2: Empty (is active cursor!)
+      expect(tiles?.[2]?.className).toContain('tile-cursor');
+      // Tile 3: Empty (not cursor yet)
+      expect(tiles?.[3]?.className).not.toContain('tile-cursor');
+    });
+
+    it('Marks active row as ready for submission when all 5 letters are typed', () => {
+      const { container } = render(
+        <Board
+          history={[]}
+          currentGuess="SLATE"
+          currentFeedback={[0, 0, 0, 0, 0]}
+          activeRowIndex={0}
+          onToggleTileFeedback={() => {}}
+        />
+      );
+
+      const activeRow = container.querySelector('.board-row-active');
+      expect(activeRow?.className).toContain('board-row-ready');
+
+      // No individual tile should have tile-cursor when full
+      const cursorTile = activeRow?.querySelector('.tile-cursor');
+      expect(cursorTile).toBeNull();
+
+      // All tiles in ready row have tile-ready
+      const readyTiles = activeRow?.querySelectorAll('.tile-ready');
+      expect(readyTiles?.length).toBe(5);
+    });
   });
 
   describe('useWordleBoard Hook Logic', () => {

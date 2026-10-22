@@ -216,6 +216,33 @@ h1 {
   border-color: var(--color-border-light);
 }
 
+/* Active cursor tile indicator: visually distinguishes the next tile to receive a letter */
+.tile-cursor {
+  border-color: var(--color-green) !important;
+  box-shadow: 0 0 0 2px rgba(83, 141, 78, 0.45);
+  animation: tile-cursor-pulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes tile-cursor-pulse {
+  0% {
+    border-color: var(--color-green);
+    box-shadow: 0 0 0 2px rgba(83, 141, 78, 0.55);
+  }
+  100% {
+    border-color: var(--color-border-light);
+    box-shadow: 0 0 0 1px rgba(129, 131, 132, 0.25);
+  }
+}
+
+/* When all 5 letters are typed, the entire active row indicates readiness */
+.board-row-ready .tile {
+  border-color: var(--color-border-light);
+}
+
+.tile-ready {
+  border-color: var(--color-border-light);
+}
+
 .tile-grey {
   background-color: var(--color-grey);
   border-color: var(--color-grey);
@@ -477,6 +504,7 @@ h1 {
 .status-proved { background-color: #1e3a8a; color: #bfdbfe; border: 1px solid #2563eb; }
 .status-disproved { background-color: #701a75; color: #f5d0fe; border: 1px solid #a21caf; }
 .status-unresolved { background-color: #78350f; color: #fde68a; border: 1px solid #d97706; }
+.status-heuristic { background-color: #1e293b; color: #94a3b8; border: 1px solid #334155; }
 
 .rec-word-hero {
   display: flex;

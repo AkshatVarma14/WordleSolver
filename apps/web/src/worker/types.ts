@@ -3,6 +3,7 @@ import {
   SearchBudget,
   StrategyType,
   TurnRecord,
+  UnifiedRecommendation,
 } from '@wordle-solver/solver';
 
 /**
@@ -14,7 +15,7 @@ export type WorkerRequest =
       readonly id: number;
       readonly type: 'SOLVE';
       readonly history: readonly TurnRecord[];
-      readonly strategy: StrategyType;
+      readonly strategy?: StrategyType | 'UNIFIED';
       readonly budget?: Partial<SearchBudget>;
       readonly turnsRemaining: number;
     }
@@ -33,7 +34,7 @@ export type WorkerResponse =
   | {
       readonly id: number;
       readonly type: 'SOLVE_SUCCESS';
-      readonly result: RecommendationResult;
+      readonly result: RecommendationResult | UnifiedRecommendation;
       readonly remainingCandidates: readonly string[];
       readonly candidatesCount: number;
       readonly isContradiction: boolean;

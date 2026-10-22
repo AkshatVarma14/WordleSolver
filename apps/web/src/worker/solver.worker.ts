@@ -2,6 +2,7 @@ import {
   filterByHistory,
   getBoundedSearchRecommendation,
   getFastRecommendation,
+  getUnifiedRecommendation,
 } from '@wordle-solver/solver';
 import { ALL_VALID_GUESSES, INITIAL_ANSWERS } from '../data/words';
 import { WorkerRequest, WorkerResponse } from './types';
@@ -16,7 +17,13 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
     if (req.type === 'SOLVE') {
       let result;
-      if (req.strategy === 'FAST_ENTROPY') {
+      if (!req.strategy || req.strategy === 'UNIFIED') {
+        result = getUnifiedRecommendation(
+          candidates,
+          ALL_VALID_GUESSES,
+          req.turnsRemaining
+        );
+      } else if (req.strategy === 'FAST_ENTROPY') {
         result = getFastRecommendation(candidates, ALL_VALID_GUESSES);
       } else {
         result = getBoundedSearchRecommendation(

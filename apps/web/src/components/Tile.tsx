@@ -5,6 +5,8 @@ interface TileProps {
   readonly letter?: string;
   readonly feedback?: TileFeedback;
   readonly isEditable?: boolean;
+  readonly isCursor?: boolean;
+  readonly isReady?: boolean;
   readonly onClick?: () => void;
   readonly position: number;
 }
@@ -25,6 +27,8 @@ export const Tile: React.FC<TileProps> = ({
   letter = '',
   feedback,
   isEditable = false,
+  isCursor = false,
+  isReady = false,
   onClick,
   position,
 }) => {
@@ -48,6 +52,9 @@ export const Tile: React.FC<TileProps> = ({
     stateClass = 'tile-filled';
   }
 
+  const cursorClass = isCursor ? 'tile-cursor' : '';
+  const readyClass = isReady ? 'tile-ready' : '';
+
   const label = isEditable
     ? `Tile ${position + 1}: ${letter || 'Empty'}, State: ${
         feedback !== undefined ? FEEDBACK_NAMES[feedback] : 'Unassigned'
@@ -59,7 +66,7 @@ export const Tile: React.FC<TileProps> = ({
   return (
     <button
       type="button"
-      className={`tile ${stateClass} ${isEditable ? 'tile-editable' : ''}`}
+      className={`tile ${stateClass} ${isEditable ? 'tile-editable' : ''} ${cursorClass} ${readyClass}`.trim()}
       onClick={isEditable ? onClick : undefined}
       disabled={!isEditable}
       aria-label={label}

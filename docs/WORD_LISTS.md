@@ -51,6 +51,25 @@ Both files were verified using programmatic integrity checks (`tests` and valida
 
 ---
 
-## 4. Academic Relevance for AISC Evaluation
+## 4. Academic Relevance & Problem Formulation
 
-- **Probing Guesses Outside Answers ($G \setminus A$):** The 10,638 non-answer allowable guesses provide the AI solver with exploratory probes. Often, a word with high vowel/consonant diversity from $G \setminus A$ (e.g., `SOARE`, `ROATE`, `TARES`) delivers higher Shannon entropy than any candidate in $A$, accelerating candidate set reduction even though it cannot win immediately.
+- **Probing Guesses Outside Answers ($G \setminus A$):** The 10,638 non-answer allowable guesses provide the AI solver with exploratory probes. Often, a word with high vowel/consonant diversity from $G \setminus A$ (e.g., `SOARE`, `ROATE`, `TARES`, `SALET`) delivers higher Shannon entropy than any candidate in $A$, accelerating candidate set reduction even though it cannot win immediately.
+
+---
+
+## 5. Live NYT Wordle Divergence & Graceful Discrepancy Handling
+
+### 5.1 Classical Wordle Baseline vs. Live NYT Editorial Adjustments
+- **Classical Baseline:** The 2,315 words in `data/answers.txt` and 12,953 words in `data/valid-guesses.txt` match the classical original Wordle baseline (created by Josh Wardle in 2021).
+- **Post-2022 NYT Editorial Changes:** Following The New York Times' acquisition of Wordle in February 2022 and the subsequent appointment of a dedicated Wordle editor (Tracy Bennett, late 2022), the live game has experienced editorial alterations:
+  - Removal of sensitive, archaic, or offensive words (e.g., `AGORA`, `PUPAL`, `SLAVE`, `WENCH`).
+  - Addition of modern slang and colloquial expressions to the accepted valid-guesses dictionary.
+  - Periodic reordering and ad-hoc editorial selection of daily solution words rather than strictly following the original static chronological array.
+- **Honest Accuracy Disclosure:** We explicitly do **not** claim real-time synchronization with proprietary live NYT editorial servers. The included word lists represent the open-source classical Wordle benchmark, universally recognized in academic solver literature.
+
+### 5.2 Graceful Discrepancy Handling in Web App & Extension
+To ensure uninterrupted operation when encountering words altered by NYT editors:
+1. **Permissive Input Validation:** The guess input validation logic accepts any valid 5-letter alphabetical sequence (`[A-Za-z]{5}`). The solver never blocks a user from entering an unlisted guess that NYT accepts.
+2. **Dynamic Candidate Filtering:** Filtering operates strictly on ternary feedback patterns ($0, 1, 2$) generated against candidate words. Probing with an unlisted word filters the remaining candidates with complete mathematical consistency.
+3. **Contradiction State Detection:** If NYT selects an answer not present in the classical 2,315-word answer dictionary, candidate filtering will narrow the pool to 0 remaining words. Rather than throwing an exception or hanging, the solver cleanly renders a contradiction alert informing the user that 0 dictionary words match the observed feedback, allowing immediate review or manual board adjustment.
+4. **Manual Feedback Override:** All tiles in the active row (and in the extension UI) support cycling feedback states (Grey → Yellow → Green) with single clicks, giving the user complete authority to match whatever feedback appears on their screen.

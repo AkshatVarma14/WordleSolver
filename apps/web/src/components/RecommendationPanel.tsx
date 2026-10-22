@@ -1,14 +1,22 @@
 import React from 'react';
-import { GuaranteeStatus, RecommendationResult, StrategyType } from '@wordle-solver/solver';
+import {
+  GuaranteeStatus,
+  RecommendationResult,
+  StrategyType,
+  UnifiedRecommendation,
+} from '@wordle-solver/solver';
 
 interface RecommendationPanelProps {
-  readonly recommendation: RecommendationResult | null;
+  readonly recommendation: RecommendationResult | UnifiedRecommendation | null;
   readonly loading: boolean;
-  readonly strategy: StrategyType;
+  readonly strategy?: StrategyType | 'UNIFIED';
   readonly onAutofill: (word: string) => void;
 }
 
-const STATUS_LABELS: Record<GuaranteeStatus, { label: string; className: string; description: string }> = {
+const STATUS_LABELS: Record<
+  GuaranteeStatus | 'HEURISTIC',
+  { label: string; className: string; description: string }
+> = {
   WON: {
     label: 'Target Solved',
     className: 'status-won',
@@ -22,19 +30,24 @@ const STATUS_LABELS: Record<GuaranteeStatus, { label: string; className: string;
   DISPROVED_WIN: {
     label: 'Unwinnable Within Budget',
     className: 'status-disproved',
-    description: 'Exhaustively proved that no sequence of moves can guarantee solving all candidates in the remaining turns.',
+    description: 'Exhaustively proved that no sequence of moves can guarantee solving all candidates in remaining turns.',
   },
   UNRESOLVED_RESOURCE_LIMIT: {
     label: 'Bounded Heuristic (Resource Cap)',
     className: 'status-unresolved',
-    description: 'Search stopped due to time budget or node limit. The recommendation is a strong heuristic choice, not a mathematical proof.',
+    description: 'Search stopped due to budget limits. Recommendation is a sound heuristic choice, not an exhaustive proof.',
+  },
+  HEURISTIC: {
+    label: 'Optimal Information Gain',
+    className: 'status-heuristic',
+    description: 'Maximizes Shannon entropy to partition remaining candidates most evenly.',
   },
 };
 
 export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
   recommendation,
   loading,
-  strategy,
+  strategy = 'UNIFIED',
   onAutofill,
 }) => {
   if (loading) {
@@ -44,9 +57,9 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
         <div className="loading-text">
           <strong>Evaluating game tree...</strong>
           <small>
-            {strategy === 'FAST_ENTROPY'
-              ? 'Computing Shannon information gain across vocabulary'
-              : 'Exploring multi-ply minimax lookahead with branch pruning'}
+            {strategy === 'BOUNDED_MINIMAX'
+              ? 'Exploring multi-ply minimax lookahead with branch pruning'
+              : 'Computing Shannon information gain across vocabulary'}
           </small>
         </div>
       </div>
@@ -65,21 +78,73 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
     return (
       <div className="recommendation-card empty-card">
         <h3>Ready to Solve</h3>
-        <p>Enter your guess and set the tile colors above to view AI recommendations.</p>
+        <p>Enter your guess and set the tile colors above to view recommendations.</p>
       </div>
     );
   }
 
-  const { recommendedGuess, evaluation, searchMetrics, status, explanation, warning } = recommendation;
-  const statusMeta = status ? STATUS_LABELS[status] : null;
+  const { recommendedGuess } = recommendation;
+  const status = recommendation.status ?? 'HEURISTIC';
+  const statusMeta = STATUS_LABELS[status];
+
+  // Extract metrics from either RecommendationResult or UnifiedRecommendation
+  const entropyBits =
+    'evaluation' in recommendation && recommendation.evaluation
+      ? recommendation.evaluation.entropyBits
+      : 'entropyBits' in recommendation
+      ? recommendation.entropyBits
+      : undefined;
+
+  const expectedRemaining =
+    'evaluation' in recommendation && recommendation.evaluation
+      ? recommendation.evaluation.expectedRemaining
+      : 'expectedRemaining' in recommendation
+      ? recommendation.expectedRemaining
+      : undefined;
+
+  const worstCaseSize =
+    'evaluation' in recommendation && recommendation.evaluation
+      ? recommendation.evaluation.worstCasePartitionSize
+      : undefined;
+
+  const immediateWinProb =
+    'evaluation' in recommendation && recommendation.evaluation
+      ? recommendation.evaluation.immediateWinProbability
+      : undefined;
+
+  const isCandidate =
+    'evaluation' in recommendation && recommendation.evaluation
+      ? recommendation.evaluation.isCandidate
+      : 'isCandidate' in recommendation
+      ? recommendation.isCandidate
+      : true;
+
+  const nodesExpanded =
+    'searchMetrics' in recommendation && recommendation.searchMetrics
+      ? recommendation.searchMetrics.nodesExpanded
+      : 'nodesExpanded' in recommendation
+      ? recommendation.nodesExpanded
+      : undefined;
+
+  const worstCaseTurns =
+    'searchMetrics' in recommendation && recommendation.searchMetrics
+      ? recommendation.searchMetrics.worstCaseTurns
+      : 'worstCaseTurns' in recommendation
+      ? recommendation.worstCaseTurns
+      : undefined;
+
+  const reasonText =
+    ('reason' in recommendation && recommendation.reason) ||
+    ('explanation' in recommendation && recommendation.explanation) ||
+    '';
+
+  const warning = recommendation.warning;
 
   return (
     <section className="recommendation-card" aria-label="AI Move Recommendation">
       <div className="rec-header">
         <div className="rec-meta">
-          <span className="strategy-tag">
-            {strategy === 'FAST_ENTROPY' ? '⚡ Fast Shannon Entropy' : '🌲 Bounded Deeper Search'}
-          </span>
+          <span className="strategy-tag">Authoritative Recommendation</span>
           {statusMeta && (
             <span
               className={`status-tag ${statusMeta.className}`}
@@ -92,7 +157,7 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
 
         <div className="rec-word-hero">
           <div className="rec-word-display">
-            <span className="rec-label">Recommended Guess:</span>
+            <span className="rec-label">Recommended Guess</span>
             <span className="rec-word">{recommendedGuess}</span>
           </div>
           <button
@@ -108,66 +173,69 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
 
       {warning && (
         <div className="warning-banner" role="status">
-          <span className="warning-icon">ℹ️</span>
           <span>{warning}</span>
         </div>
       )}
 
-      {evaluation && (
-        <div className="metrics-grid">
-          <div className="metric-box">
-            <span className="metric-title">Information Gain</span>
-            <span className="metric-val">{evaluation.entropyBits.toFixed(2)}</span>
-            <span className="metric-sub">bits of entropy</span>
-          </div>
-
-          <div className="metric-box">
-            <span className="metric-title">Expected Pool</span>
-            <span className="metric-val">{evaluation.expectedRemaining.toFixed(1)}</span>
-            <span className="metric-sub">remaining candidates</span>
-          </div>
-
-          <div className="metric-box">
-            <span className="metric-title">Worst-Case Size</span>
-            <span className="metric-val">{evaluation.worstCasePartitionSize}</span>
-            <span className="metric-sub">largest partition</span>
-          </div>
-
-          <div className="metric-box">
-            <span className="metric-title">Immediate Win</span>
-            <span className="metric-val">
-              {(evaluation.immediateWinProbability * 100).toFixed(1)}%
-            </span>
-            <span className="metric-sub">
-              {evaluation.isCandidate ? 'in candidate set' : 'exploratory probe'}
-            </span>
-          </div>
-
-          {searchMetrics && (
-            <>
-              <div className="metric-box">
-                <span className="metric-title">Nodes Expanded</span>
-                <span className="metric-val">{searchMetrics.nodesExpanded.toLocaleString()}</span>
-                <span className="metric-sub">{searchMetrics.durationMs}ms runtime</span>
-              </div>
-
-              <div className="metric-box">
-                <span className="metric-title">Worst-Case Turns</span>
-                <span className="metric-val">
-                  {searchMetrics.worstCaseTurns !== undefined
-                    ? `${searchMetrics.worstCaseTurns} turns`
-                    : 'Unresolved'}
-                </span>
-                <span className="metric-sub">depth {searchMetrics.depthReached} reached</span>
-              </div>
-            </>
-          )}
+      {reasonText && (
+        <div className="explanation-box">
+          <p className="explanation-text">{reasonText}</p>
         </div>
       )}
 
-      <div className="explanation-box">
-        <p className="explanation-text">{explanation}</p>
-      </div>
+      {(entropyBits !== undefined || nodesExpanded !== undefined) && (
+        <div className="metrics-grid">
+          {entropyBits !== undefined && (
+            <div className="metric-box">
+              <span className="metric-title">Information Gain</span>
+              <span className="metric-val">{entropyBits.toFixed(2)}</span>
+              <span className="metric-sub">bits of entropy</span>
+            </div>
+          )}
+
+          {expectedRemaining !== undefined && (
+            <div className="metric-box">
+              <span className="metric-title">Expected Pool</span>
+              <span className="metric-val">{expectedRemaining.toFixed(1)}</span>
+              <span className="metric-sub">remaining candidates</span>
+            </div>
+          )}
+
+          {worstCaseSize !== undefined && (
+            <div className="metric-box">
+              <span className="metric-title">Worst-Case Size</span>
+              <span className="metric-val">{worstCaseSize}</span>
+              <span className="metric-sub">largest partition</span>
+            </div>
+          )}
+
+          {immediateWinProb !== undefined && (
+            <div className="metric-box">
+              <span className="metric-title">Immediate Win</span>
+              <span className="metric-val">{(immediateWinProb * 100).toFixed(1)}%</span>
+              <span className="metric-sub">
+                {isCandidate ? 'in candidate set' : 'exploratory probe'}
+              </span>
+            </div>
+          )}
+
+          {nodesExpanded !== undefined && (
+            <div className="metric-box">
+              <span className="metric-title">Nodes Expanded</span>
+              <span className="metric-val">{nodesExpanded.toLocaleString()}</span>
+              <span className="metric-sub">search nodes</span>
+            </div>
+          )}
+
+          {worstCaseTurns !== undefined && (
+            <div className="metric-box">
+              <span className="metric-title">Worst-Case Turns</span>
+              <span className="metric-val">{worstCaseTurns} turns</span>
+              <span className="metric-sub">guaranteed depth</span>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 };

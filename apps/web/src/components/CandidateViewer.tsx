@@ -55,7 +55,6 @@ export const CandidateViewer: React.FC<CandidateViewerProps> = ({
 
       {isContradiction ? (
         <div className="contradiction-alert" role="alert">
-          <div className="alert-icon">⚠️</div>
           <div className="alert-content">
             <strong>Contradiction Detected: 0 candidates remain</strong>
             <p>

@@ -7,16 +7,14 @@ export const Header: React.FC = () => {
         <div className="title-area">
           <div className="logo-badge">W</div>
           <div>
-            <h1>Wordle Solver &amp; AI Decision Assistant</h1>
+            <h1>Wordle Solver</h1>
             <p className="subtitle">
-              Artificial Intelligence &amp; Soft Computing (AISC, CSE3121) — Information Gain &amp; Minimax Lookahead
+              Fast Information Gain &amp; Guaranteed End-Game Lookahead
             </p>
           </div>
         </div>
-
         <div className="header-badges">
-          <span className="course-pill">Course: AISC (CSE3121)</span>
-          <span className="offline-pill">100% Client-Side</span>
+          <span className="offline-pill">Offline &amp; Client-Side</span>
         </div>
       </div>
     </header>

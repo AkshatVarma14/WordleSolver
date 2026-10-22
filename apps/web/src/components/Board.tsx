@@ -33,12 +33,14 @@ export const Board: React.FC<BoardProps> = ({
       rowFeedback = currentFeedback;
     }
 
+    const isRowReady = isActive && currentGuess.length === 5;
+
     return (
       <div
         key={rowIndex}
         className={`board-row ${isActive ? 'board-row-active' : ''} ${
           isSubmitted ? 'board-row-submitted' : ''
-        }`}
+        } ${isRowReady ? 'board-row-ready' : ''}`.trim()}
         role="group"
         aria-label={`Row ${rowIndex + 1}: ${
           isSubmitted
@@ -48,16 +50,23 @@ export const Board: React.FC<BoardProps> = ({
             : 'Unused row'
         }`}
       >
-        {rowLetters.map((letter, colIndex) => (
-          <Tile
-            key={colIndex}
-            letter={letter}
-            feedback={rowFeedback ? rowFeedback[colIndex] : undefined}
-            isEditable={isActive && currentGuess.length > colIndex}
-            onClick={() => onToggleTileFeedback(colIndex)}
-            position={colIndex}
-          />
-        ))}
+        {rowLetters.map((letter, colIndex) => {
+          const isCursor = isActive && currentGuess.length < 5 && colIndex === currentGuess.length;
+          const isReady = isActive && currentGuess.length === 5;
+
+          return (
+            <Tile
+              key={colIndex}
+              letter={letter}
+              feedback={rowFeedback ? rowFeedback[colIndex] : undefined}
+              isEditable={isActive && currentGuess.length > colIndex}
+              isCursor={isCursor}
+              isReady={isReady}
+              onClick={() => onToggleTileFeedback(colIndex)}
+              position={colIndex}
+            />
+          );
+        })}
       </div>
     );
   });
@@ -68,7 +77,7 @@ export const Board: React.FC<BoardProps> = ({
       {activeRowIndex < 6 && (
         <div className="board-instructions">
           <small>
-            💡 <strong>Tip:</strong> Click on letters in the active row to cycle their feedback:{' '}
+            Click letters in the active row to toggle feedback:{' '}
             <span className="badge badge-grey">Grey</span> →{' '}
             <span className="badge badge-yellow">Yellow</span> →{' '}
             <span className="badge badge-green">Green</span>
