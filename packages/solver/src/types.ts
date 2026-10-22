@@ -47,6 +47,50 @@ export interface TurnRecord {
 }
 
 /**
+ * Result of filtering candidates through historical turns.
+ */
+export interface FilterHistoryResult {
+  readonly candidates: readonly string[];
+  readonly initialCount: number;
+  readonly remainingCount: number;
+  readonly isContradiction: boolean;
+  readonly stepCounts: readonly number[];
+}
+
+/**
+ * Evaluation metrics for a single guess against a candidate set.
+ */
+export interface GuessEvaluation {
+  readonly guess: string;
+  readonly isCandidate: boolean;
+  readonly entropyBits: number;
+  readonly expectedRemaining: number;
+  readonly worstCasePartitionSize: number;
+  readonly distinctPatternsCount: number;
+  readonly immediateWinProbability: number;
+}
+
+/**
+ * Strategy identification.
+ */
+export type StrategyType = 'FAST_ENTROPY' | 'BOUNDED_MINIMAX';
+
+/**
+ * Complete recommendation response returned by solver strategies.
+ */
+export interface RecommendationResult {
+  readonly recommendedGuess: string | null;
+  readonly strategy: StrategyType;
+  readonly candidatesCount: number;
+  readonly isContradiction: boolean;
+  readonly isWon: boolean;
+  readonly evaluation: GuessEvaluation | null;
+  readonly topRanked: readonly GuessEvaluation[];
+  readonly explanation: string;
+  readonly warning?: string;
+}
+
+/**
  * Status categorization for search and strategy evaluations.
  */
 export type GuaranteeStatus =
@@ -54,11 +98,6 @@ export type GuaranteeStatus =
   | 'PROVED_WIN'
   | 'DISPROVED_WIN'
   | 'UNRESOLVED_RESOURCE_LIMIT';
-
-/**
- * Available solver strategies.
- */
-export type StrategyType = 'FAST_ENTROPY' | 'BOUNDED_MINIMAX';
 
 /**
  * Execution and resource limits for deeper game-tree search.
@@ -81,6 +120,20 @@ export class InvalidWordError extends Error {
     super(`Invalid ${field}: '${String(value)}'. ${reason}`);
     this.name = 'InvalidWordError';
     this.field = field;
+    this.value = value;
+    Object.setPrototypeOf(this, new.target.prototype);
+  }
+}
+
+/**
+ * Custom error thrown when a feedback pattern is malformed.
+ */
+export class InvalidFeedbackError extends Error {
+  public readonly value: unknown;
+
+  constructor(value: unknown, reason: string) {
+    super(`Invalid feedback pattern: '${String(value)}'. ${reason}`);
+    this.name = 'InvalidFeedbackError';
     this.value = value;
     Object.setPrototypeOf(this, new.target.prototype);
   }
