@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "paths": {
+      "@wordle-solver/solver": ["./packages/solver/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src/**/*",
+    "tests/**/*",
+    "vitest.config.ts"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "@wordle-solver/solver",
+  "version": "0.1.0",
+  "description": "Pure deterministic Wordle solver engine",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}
