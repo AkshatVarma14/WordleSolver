@@ -76,6 +76,28 @@ export interface GuessEvaluation {
 export type StrategyType = 'FAST_ENTROPY' | 'BOUNDED_MINIMAX';
 
 /**
+ * Status categorization for search and strategy evaluations.
+ */
+export type GuaranteeStatus =
+  | 'WON'
+  | 'PROVED_WIN'
+  | 'DISPROVED_WIN'
+  | 'UNRESOLVED_RESOURCE_LIMIT';
+
+/**
+ * Diagnostics and performance metrics for bounded deeper search.
+ */
+export interface SearchMetrics {
+  readonly nodesExpanded: number;
+  readonly durationMs: number;
+  readonly depthReached: number;
+  readonly worstCaseTurns?: number;
+  readonly hitResourceLimit: boolean;
+  readonly status: GuaranteeStatus;
+  readonly memoHits: number;
+}
+
+/**
  * Complete recommendation response returned by solver strategies.
  */
 export interface RecommendationResult {
@@ -87,17 +109,10 @@ export interface RecommendationResult {
   readonly evaluation: GuessEvaluation | null;
   readonly topRanked: readonly GuessEvaluation[];
   readonly explanation: string;
+  readonly status?: GuaranteeStatus;
+  readonly searchMetrics?: SearchMetrics;
   readonly warning?: string;
 }
-
-/**
- * Status categorization for search and strategy evaluations.
- */
-export type GuaranteeStatus =
-  | 'WON'
-  | 'PROVED_WIN'
-  | 'DISPROVED_WIN'
-  | 'UNRESOLVED_RESOURCE_LIMIT';
 
 /**
  * Execution and resource limits for deeper game-tree search.
@@ -108,6 +123,16 @@ export interface SearchBudget {
   readonly timeoutMs: number;
   readonly maxNodeExpansions: number;
 }
+
+/**
+ * Default safe search budget parameters for client-side and browser execution.
+ */
+export const DEFAULT_SEARCH_BUDGET: SearchBudget = {
+  maxDepth: 3,
+  maxBranchCandidates: 20,
+  timeoutMs: 500,
+  maxNodeExpansions: 25000,
+};
 
 /**
  * Custom error thrown when a word violates the 5-letter alphabetic contract.

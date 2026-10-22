@@ -7,3 +7,4 @@ export * from './types';
 export * from './feedback';
 export * from './filter';
 export * from './entropy';
+export * from './search';
