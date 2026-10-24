@@ -43,6 +43,7 @@ export const App: React.FC = () => {
     remainingCandidates,
     isContradiction,
     contradictionDiagnosis,
+    isExpandedFallback,
     error: workerError,
     requestSolve,
     resetSolve,
@@ -208,6 +209,7 @@ export const App: React.FC = () => {
             candidates={remainingCandidates}
             totalInitial={INITIAL_ANSWERS.length}
             isContradiction={isContradiction}
+            isExpandedFallback={isExpandedFallback}
             onSelectWord={applyRecommendation}
           />
         </div>

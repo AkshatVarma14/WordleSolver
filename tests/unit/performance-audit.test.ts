@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -31,6 +31,10 @@ const GUESSES: readonly string[] = Object.freeze(
 );
 
 describe('Performance & Correctness Audit (Stage 5)', () => {
+  beforeAll(() => {
+    // Warm up V8 JIT for filterByHistory to ensure reliable timing measurements
+    filterByHistory(ANSWERS, [{ guess: 'CRANE', feedback: [0, 0, 0, 0, 0] }]);
+  });
   it('Scenario 1: Initial recommendation on full 2,315-word dictionary (<1ms)', () => {
     const t0 = performance.now();
     const rec = getUnifiedRecommendation(ANSWERS, GUESSES, 6);

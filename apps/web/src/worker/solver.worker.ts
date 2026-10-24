@@ -1,6 +1,5 @@
 import {
-  filterByHistory,
-  diagnoseContradiction,
+  filterByLayeredHistory,
   getBoundedSearchRecommendation,
   getFastRecommendation,
   getUnifiedRecommendation,
@@ -13,19 +12,19 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const req = event.data;
 
   try {
-    const filterResult = filterByHistory(INITIAL_ANSWERS, req.history);
-    const candidates = filterResult.candidates;
+    const layeredResult = filterByLayeredHistory(
+      INITIAL_ANSWERS,
+      ALL_VALID_GUESSES,
+      req.history
+    );
+    const candidates = layeredResult.candidates;
+    const isExpandedFallback = layeredResult.isExpandedFallback;
+    const candidateScope = layeredResult.scope;
 
     if (req.type === 'SOLVE') {
       let result = null;
-      let contradictionDiagnosis = null;
 
-      if (filterResult.isContradiction) {
-        contradictionDiagnosis = diagnoseContradiction(
-          req.history,
-          INITIAL_ANSWERS,
-          ALL_VALID_GUESSES
-        );
+      if (layeredResult.isContradiction) {
         if (req.strategy === 'FAST_ENTROPY') {
           result = getFastRecommendation([], ALL_VALID_GUESSES);
         } else if (req.strategy === 'BOUNDED_MINIMAX') {
@@ -43,11 +42,17 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
           );
         }
       } else {
+        const policyOptions = {
+          candidateScope,
+          isExpandedFallback,
+        };
+
         if (!req.strategy || req.strategy === 'UNIFIED') {
           result = getUnifiedRecommendation(
             candidates,
             ALL_VALID_GUESSES,
-            req.turnsRemaining
+            req.turnsRemaining,
+            policyOptions
           );
         } else if (req.strategy === 'FAST_ENTROPY') {
           result = getFastRecommendation(candidates, ALL_VALID_GUESSES);
@@ -67,8 +72,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         result,
         remainingCandidates: candidates,
         candidatesCount: candidates.length,
-        isContradiction: filterResult.isContradiction,
-        contradictionDiagnosis,
+        isContradiction: layeredResult.isContradiction,
+        contradictionDiagnosis: layeredResult.contradictionDiagnosis,
+        candidateScope,
+        isExpandedFallback,
+        fallbackWarning: layeredResult.warning,
       };
 
       self.postMessage(response);
@@ -88,7 +96,9 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         deeperResult,
         remainingCandidates: candidates,
         candidatesCount: candidates.length,
-        isContradiction: filterResult.isContradiction,
+        isContradiction: layeredResult.isContradiction,
+        candidateScope,
+        isExpandedFallback,
       };
 
       self.postMessage(response);

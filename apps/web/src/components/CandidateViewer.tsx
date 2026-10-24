@@ -4,6 +4,7 @@ interface CandidateViewerProps {
   readonly candidates: readonly string[];
   readonly totalInitial: number;
   readonly isContradiction: boolean;
+  readonly isExpandedFallback?: boolean;
   readonly onSelectWord: (word: string) => void;
 }
 
@@ -13,6 +14,7 @@ export const CandidateViewer: React.FC<CandidateViewerProps> = ({
   candidates,
   totalInitial,
   isContradiction,
+  isExpandedFallback = false,
   onSelectWord,
 }) => {
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -45,11 +47,19 @@ export const CandidateViewer: React.FC<CandidateViewerProps> = ({
           <h3>Surviving Candidates</h3>
           <div className="candidate-badge">
             <span className="count-number">{candidates.length.toLocaleString()}</span>
-            <span className="count-total">/ {totalInitial.toLocaleString()}</span>
+            {isExpandedFallback ? (
+              <span className="count-total">fallback (unverified)</span>
+            ) : (
+              <span className="count-total">/ {totalInitial.toLocaleString()}</span>
+            )}
           </div>
         </div>
         <div className="reduction-pill">
-          <span>{reductionPercent}% eliminated</span>
+          {isExpandedFallback ? (
+            <span className="status-tag status-unresolved">Expanded Dictionary</span>
+          ) : (
+            <span>{reductionPercent}% eliminated</span>
+          )}
         </div>
       </div>
 

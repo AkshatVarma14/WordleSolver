@@ -1,4 +1,5 @@
 import {
+  CandidateScope,
   ContradictionDiagnosis,
   RecommendationResult,
   SearchBudget,
@@ -40,6 +41,9 @@ export type WorkerResponse =
       readonly candidatesCount: number;
       readonly isContradiction: boolean;
       readonly contradictionDiagnosis?: ContradictionDiagnosis | null;
+      readonly candidateScope?: CandidateScope;
+      readonly isExpandedFallback?: boolean;
+      readonly fallbackWarning?: string;
     }
   | {
       readonly id: number;
@@ -49,6 +53,8 @@ export type WorkerResponse =
       readonly remainingCandidates: readonly string[];
       readonly candidatesCount: number;
       readonly isContradiction: boolean;
+      readonly candidateScope?: CandidateScope;
+      readonly isExpandedFallback?: boolean;
     }
   | {
       readonly id: number;

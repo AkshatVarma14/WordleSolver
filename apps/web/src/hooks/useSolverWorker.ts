@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
+  CandidateScope,
   ContradictionDiagnosis,
   RecommendationResult,
   SearchBudget,
   StrategyType,
   TurnRecord,
   UnifiedRecommendation,
-  diagnoseContradiction,
-  filterByHistory,
+  filterByLayeredHistory,
   getBoundedSearchRecommendation,
   getFastRecommendation,
   getUnifiedRecommendation,
@@ -22,6 +22,8 @@ export interface UseSolverWorkerReturn {
   readonly candidatesCount: number;
   readonly isContradiction: boolean;
   readonly contradictionDiagnosis: ContradictionDiagnosis | null;
+  readonly candidateScope: CandidateScope;
+  readonly isExpandedFallback: boolean;
   readonly error: string | null;
   readonly compareData: {
     readonly fastResult: RecommendationResult;
@@ -63,6 +65,8 @@ export function useSolverWorker(): UseSolverWorkerReturn {
   const [candidatesCount, setCandidatesCount] = useState<number>(INITIAL_ANSWERS.length);
   const [isContradiction, setIsContradiction] = useState<boolean>(false);
   const [contradictionDiagnosis, setContradictionDiagnosis] = useState<ContradictionDiagnosis | null>(null);
+  const [candidateScope, setCandidateScope] = useState<CandidateScope>('PRIMARY');
+  const [isExpandedFallback, setIsExpandedFallback] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [compareData, setCompareData] = useState<{
     readonly fastResult: RecommendationResult;
@@ -93,6 +97,8 @@ export function useSolverWorker(): UseSolverWorkerReturn {
             setCandidatesCount(res.candidatesCount);
             setIsContradiction(res.isContradiction);
             setContradictionDiagnosis(res.contradictionDiagnosis ?? null);
+            setCandidateScope(res.candidateScope ?? 'PRIMARY');
+            setIsExpandedFallback(Boolean(res.isExpandedFallback));
             setError(null);
           } else if (res.type === 'COMPARE_SUCCESS') {
             setCompareData({
@@ -102,6 +108,8 @@ export function useSolverWorker(): UseSolverWorkerReturn {
             setRemainingCandidates(res.remainingCandidates);
             setCandidatesCount(res.candidatesCount);
             setIsContradiction(res.isContradiction);
+            setCandidateScope(res.candidateScope ?? 'PRIMARY');
+            setIsExpandedFallback(Boolean(res.isExpandedFallback));
             setError(null);
           } else if (res.type === 'ERROR') {
             setError(res.message);
@@ -145,16 +153,24 @@ export function useSolverWorker(): UseSolverWorkerReturn {
       const nextId = ++requestIdRef.current;
       setError(null);
 
-      // Fast synchronous candidate filtering on main thread
-      const filterResult = filterByHistory(INITIAL_ANSWERS, history);
-      const candidates = filterResult.candidates;
+      // Fast synchronous candidate filtering on main thread using layered history
+      const layeredResult = filterByLayeredHistory(
+        INITIAL_ANSWERS,
+        ALL_VALID_GUESSES,
+        history
+      );
+      const candidates = layeredResult.candidates;
+      const isFallback = layeredResult.isExpandedFallback;
+      const scope = layeredResult.scope;
 
       setRemainingCandidates(candidates);
       setCandidatesCount(candidates.length);
-      setIsContradiction(filterResult.isContradiction);
+      setIsContradiction(layeredResult.isContradiction);
+      setCandidateScope(scope);
+      setIsExpandedFallback(isFallback);
 
-      // 1. Contradiction State Check
-      if (filterResult.isContradiction) {
+      // 1. Contradiction State Check (zero candidates in both primary and fallback)
+      if (layeredResult.isContradiction) {
         // Abort any in-flight worker immediately
         if (workerRef.current && loadingRef.current) {
           workerRef.current.terminate();
@@ -162,8 +178,7 @@ export function useSolverWorker(): UseSolverWorkerReturn {
         }
         loadingRef.current = false;
         setLoading(false);
-        const diagnosis = diagnoseContradiction(history, INITIAL_ANSWERS, ALL_VALID_GUESSES);
-        setContradictionDiagnosis(diagnosis);
+        setContradictionDiagnosis(layeredResult.contradictionDiagnosis);
         let contradictionRec: RecommendationResult | UnifiedRecommendation;
         if (strategy === 'FAST_ENTROPY') {
           contradictionRec = getFastRecommendation([], ALL_VALID_GUESSES);
@@ -176,7 +191,7 @@ export function useSolverWorker(): UseSolverWorkerReturn {
         return;
       }
 
-      setContradictionDiagnosis(null);
+      setContradictionDiagnosis(layeredResult.contradictionDiagnosis ?? null);
 
       // 2. Initial Empty-Board Cache Check
       if (history.length === 0) {
@@ -234,12 +249,17 @@ export function useSolverWorker(): UseSolverWorkerReturn {
       // Synchronous fallback when Web Worker is unavailable (e.g., in unit tests)
       try {
         let result: RecommendationResult | UnifiedRecommendation;
+        const policyOptions = {
+          candidateScope: scope,
+          isExpandedFallback: isFallback,
+        };
 
         if (!strategy || strategy === 'UNIFIED') {
           result = getUnifiedRecommendation(
             candidates,
             ALL_VALID_GUESSES,
-            turnsRemaining
+            turnsRemaining,
+            policyOptions
           );
         } else if (strategy === 'FAST_ENTROPY') {
           result = getFastRecommendation(candidates, ALL_VALID_GUESSES);
@@ -298,8 +318,12 @@ export function useSolverWorker(): UseSolverWorkerReturn {
       } else {
         // Synchronous fallback
         try {
-          const filterResult = filterByHistory(INITIAL_ANSWERS, history);
-          const candidates = filterResult.candidates;
+          const layeredResult = filterByLayeredHistory(
+            INITIAL_ANSWERS,
+            ALL_VALID_GUESSES,
+            history
+          );
+          const candidates = layeredResult.candidates;
           const fastResult = getFastRecommendation(candidates, ALL_VALID_GUESSES);
           const deeperResult = getBoundedSearchRecommendation(
             candidates,
@@ -314,7 +338,9 @@ export function useSolverWorker(): UseSolverWorkerReturn {
             setCompareData({ fastResult, deeperResult });
             setRemainingCandidates(candidates);
             setCandidatesCount(candidates.length);
-            setIsContradiction(filterResult.isContradiction);
+            setIsContradiction(layeredResult.isContradiction);
+            setCandidateScope(layeredResult.scope);
+            setIsExpandedFallback(layeredResult.isExpandedFallback);
             setError(null);
           }
         } catch (err) {
@@ -326,7 +352,7 @@ export function useSolverWorker(): UseSolverWorkerReturn {
         }
       }
     },
-    []
+    [createWorkerInstance]
   );
 
   // Cancel any active solve request and terminate worker
@@ -355,6 +381,8 @@ export function useSolverWorker(): UseSolverWorkerReturn {
     setCandidatesCount(INITIAL_ANSWERS.length);
     setIsContradiction(false);
     setContradictionDiagnosis(null);
+    setCandidateScope('PRIMARY');
+    setIsExpandedFallback(false);
     setError(null);
     setCompareData(null);
   }, [createWorkerInstance]);
@@ -370,6 +398,8 @@ export function useSolverWorker(): UseSolverWorkerReturn {
     candidatesCount,
     isContradiction,
     contradictionDiagnosis,
+    candidateScope,
+    isExpandedFallback,
     error,
     compareData,
     requestSolve,

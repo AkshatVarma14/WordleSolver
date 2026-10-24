@@ -11,6 +11,7 @@
     "dev": "npm run dev --workspace=web",
     "build": "npm run build --workspaces --if-present",
     "build:web": "npm run build --workspace=web",
+    "build:extension": "npm run build --workspace=extension",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

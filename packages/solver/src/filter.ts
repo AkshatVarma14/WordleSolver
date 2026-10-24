@@ -9,6 +9,7 @@ import {
   InvalidFeedbackError,
   TurnRecord,
   ContradictionDiagnosis,
+  LayeredFilterResult,
 } from './types';
 
 /**
@@ -224,5 +225,107 @@ export function diagnoseContradiction(
     matchingValidGuessesCount: matchingValidCount,
     sampleValidMatches,
     explanation,
+  };
+}
+
+/**
+ * Sequentially filters candidates through a two-tier layered vocabulary:
+ * Tier 1: Curated primary answers list (e.g. 2,315 words).
+ * Tier 2 (Fallback): Comprehensive accepted guesses dictionary (e.g. 12,972 words).
+ *
+ * Operational Rules:
+ * 1. If Tier 1 produces >= 1 candidate: Returns primary candidates immediately without searching Tier 2.
+ * 2. If Tier 1 produces 0 candidates after valid observations:
+ *    - Evaluates Tier 2 against the complete feedback history.
+ *    - If Tier 2 produces >= 1 candidate: Returns them as EXPANDED_FALLBACK candidates,
+ *      flagging isExpandedFallback: true and providing an honest, unverified advisory warning.
+ *    - If Tier 2 also produces 0 candidates: Flags isContradiction: true and provides
+ *      full contradiction diagnosis (internal logical impossibility).
+ *
+ * @param primaryAnswers Curated answer vocabulary
+ * @param validGuesses Comprehensive allowable guesses vocabulary
+ * @param history Turn history
+ * @returns LayeredFilterResult
+ */
+export function filterByLayeredHistory(
+  primaryAnswers: readonly string[],
+  validGuesses: readonly string[],
+  history: readonly TurnRecord[]
+): LayeredFilterResult {
+  // Step 1: Filter against primary answer list
+  const primaryResult = filterByHistory(primaryAnswers, history);
+
+  if (primaryResult.candidates.length > 0) {
+    return {
+      candidates: primaryResult.candidates,
+      scope: 'PRIMARY',
+      isExpandedFallback: false,
+      primaryCount: primaryResult.candidates.length,
+      expandedCount: 0,
+      isContradiction: false,
+      contradictionDiagnosis: null,
+      stepCounts: primaryResult.stepCounts,
+    };
+  }
+
+  // If history is empty and primary answers was empty (edge case)
+  if (history.length === 0) {
+    return {
+      candidates: [],
+      scope: 'PRIMARY',
+      isExpandedFallback: false,
+      primaryCount: 0,
+      expandedCount: 0,
+      isContradiction: false,
+      contradictionDiagnosis: null,
+      stepCounts: [],
+    };
+  }
+
+  // Step 2: Primary answers exhausted. Search expanded accepted-guess vocabulary.
+  const expandedResult = filterByHistory(validGuesses, history);
+
+  if (expandedResult.candidates.length > 0) {
+    const count = expandedResult.candidates.length;
+    const sampleWords = expandedResult.candidates.slice(0, 3).map((w) => `'${w}'`).join(', ');
+    const warning = `Curated answer list exhausted (0 matches). Recovered ${count.toLocaleString()} candidate${count === 1 ? '' : 's'} from expanded dictionary (${sampleWords}). Note: these words are accepted guesses by Wordle, but unverified as official answers.`;
+
+    const earliestIdx = primaryResult.earliestContradictionIndex ?? 0;
+    const earliestTurn = history[earliestIdx] ?? null;
+
+    return {
+      candidates: expandedResult.candidates,
+      scope: 'EXPANDED_FALLBACK',
+      isExpandedFallback: true,
+      primaryCount: 0,
+      expandedCount: count,
+      isContradiction: false,
+      contradictionDiagnosis: {
+        isContradiction: true, // indicates failure in curated answers
+        earliestContradictionIndex: earliestIdx,
+        earliestContradictingTurn: earliestTurn,
+        isVocabularyMismatch: true,
+        matchingValidGuessesCount: count,
+        sampleValidMatches: expandedResult.candidates.slice(0, 5),
+        explanation: warning,
+      },
+      stepCounts: expandedResult.stepCounts,
+      warning,
+    };
+  }
+
+  // Step 3: Expanded vocabulary also yields 0 candidates -> Genuine contradiction!
+  const diagnosis = diagnoseContradiction(history, primaryAnswers, validGuesses);
+
+  return {
+    candidates: [],
+    scope: 'PRIMARY',
+    isExpandedFallback: false,
+    primaryCount: 0,
+    expandedCount: 0,
+    isContradiction: true,
+    contradictionDiagnosis: diagnosis,
+    stepCounts: primaryResult.stepCounts,
+    warning: diagnosis.explanation,
   };
 }

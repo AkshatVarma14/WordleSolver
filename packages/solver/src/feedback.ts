@@ -80,49 +80,122 @@ export function evaluateFeedback(guess: string, answer: string): FeedbackPattern
 }
 
 /**
+ * Evaluates feedback directly into a ternary integer code in [0, 242].
+ * Code formula: p0 + 3*p1 + 9*p2 + 27*p3 + 81*p4
+ * Zero heap allocations for ultra-fast inner loops.
+ *
+ * @internal
+ */
+export function evaluateFeedbackCode(guess: string, answer: string): number {
+  let a0 = answer.charCodeAt(0), a1 = answer.charCodeAt(1), a2 = answer.charCodeAt(2), a3 = answer.charCodeAt(3), a4 = answer.charCodeAt(4);
+  const g0 = guess.charCodeAt(0), g1 = guess.charCodeAt(1), g2 = guess.charCodeAt(2), g3 = guess.charCodeAt(3), g4 = guess.charCodeAt(4);
+  let p0 = 0, p1 = 0, p2 = 0, p3 = 0, p4 = 0;
+
+  // Pass 1: exact matches
+  if (g0 === a0) { p0 = 2; a0 = 0; }
+  if (g1 === a1) { p1 = 2; a1 = 0; }
+  if (g2 === a2) { p2 = 2; a2 = 0; }
+  if (g3 === a3) { p3 = 2; a3 = 0; }
+  if (g4 === a4) { p4 = 2; a4 = 0; }
+
+  // Pass 2: left-to-right yellow matches
+  if (p0 === 0) {
+    if (g0 === a0) { p0 = 1; a0 = 0; }
+    else if (g0 === a1) { p0 = 1; a1 = 0; }
+    else if (g0 === a2) { p0 = 1; a2 = 0; }
+    else if (g0 === a3) { p0 = 1; a3 = 0; }
+    else if (g0 === a4) { p0 = 1; a4 = 0; }
+  }
+  if (p1 === 0) {
+    if (g1 === a0) { p1 = 1; a0 = 0; }
+    else if (g1 === a1) { p1 = 1; a1 = 0; }
+    else if (g1 === a2) { p1 = 1; a2 = 0; }
+    else if (g1 === a3) { p1 = 1; a3 = 0; }
+    else if (g1 === a4) { p1 = 1; a4 = 0; }
+  }
+  if (p2 === 0) {
+    if (g2 === a0) { p2 = 1; a0 = 0; }
+    else if (g2 === a1) { p2 = 1; a1 = 0; }
+    else if (g2 === a2) { p2 = 1; a2 = 0; }
+    else if (g2 === a3) { p2 = 1; a3 = 0; }
+    else if (g2 === a4) { p2 = 1; a4 = 0; }
+  }
+  if (p3 === 0) {
+    if (g3 === a0) { p3 = 1; a0 = 0; }
+    else if (g3 === a1) { p3 = 1; a1 = 0; }
+    else if (g3 === a2) { p3 = 1; a2 = 0; }
+    else if (g3 === a3) { p3 = 1; a3 = 0; }
+    else if (g3 === a4) { p3 = 1; a4 = 0; }
+  }
+  if (p4 === 0) {
+    if (g4 === a0) { p4 = 1; a0 = 0; }
+    else if (g4 === a1) { p4 = 1; a1 = 0; }
+    else if (g4 === a2) { p4 = 1; a2 = 0; }
+    else if (g4 === a3) { p4 = 1; a3 = 0; }
+    else if (g4 === a4) { p4 = 1; a4 = 0; }
+  }
+
+  return p0 + p1 * 3 + p2 * 9 + p3 * 27 + p4 * 81;
+}
+
+/**
  * Fast, unvalidated evaluation for high-throughput inner loops (simulations, entropy scoring).
  * Assumes both strings are pre-validated, uppercase 5-letter ASCII strings.
  *
  * @internal
  */
 export function evaluateFeedbackRaw(guess: string, answer: string): FeedbackPattern {
-  const pattern: [TileFeedback, TileFeedback, TileFeedback, TileFeedback, TileFeedback] = [
-    TileState.GREY,
-    TileState.GREY,
-    TileState.GREY,
-    TileState.GREY,
-    TileState.GREY,
-  ];
+  let a0 = answer.charCodeAt(0), a1 = answer.charCodeAt(1), a2 = answer.charCodeAt(2), a3 = answer.charCodeAt(3), a4 = answer.charCodeAt(4);
+  const g0 = guess.charCodeAt(0), g1 = guess.charCodeAt(1), g2 = guess.charCodeAt(2), g3 = guess.charCodeAt(3), g4 = guess.charCodeAt(4);
+  let p0: TileFeedback = TileState.GREY;
+  let p1: TileFeedback = TileState.GREY;
+  let p2: TileFeedback = TileState.GREY;
+  let p3: TileFeedback = TileState.GREY;
+  let p4: TileFeedback = TileState.GREY;
 
-  // Frequency histogram of characters in the target answer
-  const answerCounts: Record<string, number> = {};
-  for (let i = 0; i < WORD_LENGTH; i++) {
-    const char = answer[i]!;
-    answerCounts[char] = (answerCounts[char] ?? 0) + 1;
+  // Pass 1: exact matches
+  if (g0 === a0) { p0 = TileState.GREEN; a0 = 0; }
+  if (g1 === a1) { p1 = TileState.GREEN; a1 = 0; }
+  if (g2 === a2) { p2 = TileState.GREEN; a2 = 0; }
+  if (g3 === a3) { p3 = TileState.GREEN; a3 = 0; }
+  if (g4 === a4) { p4 = TileState.GREEN; a4 = 0; }
+
+  // Pass 2: left-to-right yellow matches
+  if (p0 === TileState.GREY) {
+    if (g0 === a0) { p0 = TileState.YELLOW; a0 = 0; }
+    else if (g0 === a1) { p0 = TileState.YELLOW; a1 = 0; }
+    else if (g0 === a2) { p0 = TileState.YELLOW; a2 = 0; }
+    else if (g0 === a3) { p0 = TileState.YELLOW; a3 = 0; }
+    else if (g0 === a4) { p0 = TileState.YELLOW; a4 = 0; }
+  }
+  if (p1 === TileState.GREY) {
+    if (g1 === a0) { p1 = TileState.YELLOW; a0 = 0; }
+    else if (g1 === a1) { p1 = TileState.YELLOW; a1 = 0; }
+    else if (g1 === a2) { p1 = TileState.YELLOW; a2 = 0; }
+    else if (g1 === a3) { p1 = TileState.YELLOW; a3 = 0; }
+    else if (g1 === a4) { p1 = TileState.YELLOW; a4 = 0; }
+  }
+  if (p2 === TileState.GREY) {
+    if (g2 === a0) { p2 = TileState.YELLOW; a0 = 0; }
+    else if (g2 === a1) { p2 = TileState.YELLOW; a1 = 0; }
+    else if (g2 === a2) { p2 = TileState.YELLOW; a2 = 0; }
+    else if (g2 === a3) { p2 = TileState.YELLOW; a3 = 0; }
+    else if (g2 === a4) { p2 = TileState.YELLOW; a4 = 0; }
+  }
+  if (p3 === TileState.GREY) {
+    if (g3 === a0) { p3 = TileState.YELLOW; a0 = 0; }
+    else if (g3 === a1) { p3 = TileState.YELLOW; a1 = 0; }
+    else if (g3 === a2) { p3 = TileState.YELLOW; a2 = 0; }
+    else if (g3 === a3) { p3 = TileState.YELLOW; a3 = 0; }
+    else if (g3 === a4) { p3 = TileState.YELLOW; a4 = 0; }
+  }
+  if (p4 === TileState.GREY) {
+    if (g4 === a0) { p4 = TileState.YELLOW; a0 = 0; }
+    else if (g4 === a1) { p4 = TileState.YELLOW; a1 = 0; }
+    else if (g4 === a2) { p4 = TileState.YELLOW; a2 = 0; }
+    else if (g4 === a3) { p4 = TileState.YELLOW; a3 = 0; }
+    else if (g4 === a4) { p4 = TileState.YELLOW; a4 = 0; }
   }
 
-  // Pass 1: Prioritize exact positional matches (Green = 2)
-  for (let i = 0; i < WORD_LENGTH; i++) {
-    const gChar = guess[i]!;
-    if (gChar === answer[i]!) {
-      pattern[i] = TileState.GREEN;
-      answerCounts[gChar] = answerCounts[gChar]! - 1;
-    }
-  }
-
-  // Pass 2: Left-to-right allocation of remaining characters (Yellow = 1, Grey = 0)
-  for (let i = 0; i < WORD_LENGTH; i++) {
-    if (pattern[i] !== TileState.GREEN) {
-      const gChar = guess[i]!;
-      const available = answerCounts[gChar] ?? 0;
-      if (available > 0) {
-        pattern[i] = TileState.YELLOW;
-        answerCounts[gChar] = available - 1;
-      } else {
-        pattern[i] = TileState.GREY;
-      }
-    }
-  }
-
-  return pattern;
+  return [p0, p1, p2, p3, p4];
 }

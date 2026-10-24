@@ -83,8 +83,14 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
     );
   }
 
-  // 2. Contradiction State
-  if (contradictionDiagnosis || recommendation?.isContradiction) {
+  // 2. Genuine Contradiction State (zero candidates in both primary and fallback)
+  const isFallback = Boolean(recommendation?.isExpandedFallback);
+  const isGenuineContradiction =
+    !isFallback &&
+    ((contradictionDiagnosis?.isContradiction && (!recommendation || !recommendation.recommendedGuess)) ||
+      Boolean(recommendation?.isContradiction));
+
+  if (isGenuineContradiction) {
     const earliestIdx = contradictionDiagnosis?.earliestContradictionIndex;
     const earliestTurn = contradictionDiagnosis?.earliestContradictingTurn;
     const explanation =
@@ -208,13 +214,22 @@ export const RecommendationPanel: React.FC<RecommendationPanelProps> = ({
       <div className="rec-header">
         <div className="rec-meta">
           <span className="strategy-tag">Authoritative Recommendation</span>
-          {statusMeta && (
+          {isFallback ? (
             <span
-              className={`status-tag ${statusMeta.className}`}
-              title={statusMeta.description}
+              className="status-tag status-unresolved"
+              title="No words match in curated answer list. Recommending from expanded accepted guesses."
             >
-              {statusMeta.label}
+              Expanded Fallback (Unverified)
             </span>
+          ) : (
+            statusMeta && (
+              <span
+                className={`status-tag ${statusMeta.className}`}
+                title={statusMeta.description}
+              >
+                {statusMeta.label}
+              </span>
+            )
           )}
         </div>
 

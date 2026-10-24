@@ -1,5 +1,5 @@
 import {
-  evaluateFeedbackRaw,
+  evaluateFeedbackCode,
   isValidWord,
   validateWord,
 } from './feedback';
@@ -105,8 +105,7 @@ export function evaluateGuess(
 
   for (let i = 0; i < totalCandidates; i++) {
     const candidate = normalizedCandidates[i]!;
-    const feedback = evaluateFeedbackRaw(normalizedGuess, candidate);
-    const code = patternToCode(feedback);
+    const code = evaluateFeedbackCode(normalizedGuess, candidate);
     patternCounts[code] = patternCounts[code]! + 1;
   }
 

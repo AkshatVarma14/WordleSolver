@@ -85,6 +85,28 @@ export interface GuessEvaluation {
 }
 
 /**
+ * Scope tier for surviving candidate words.
+ * PRIMARY: Curated answer vocabulary (e.g. 2,315 words).
+ * EXPANDED_FALLBACK: Accepted guess vocabulary (e.g. 12,972 words) used only when PRIMARY is exhausted.
+ */
+export type CandidateScope = 'PRIMARY' | 'EXPANDED_FALLBACK';
+
+/**
+ * Result of two-tier layered filtering.
+ */
+export interface LayeredFilterResult {
+  readonly candidates: readonly string[];
+  readonly scope: CandidateScope;
+  readonly isExpandedFallback: boolean;
+  readonly primaryCount: number;
+  readonly expandedCount: number;
+  readonly isContradiction: boolean;
+  readonly contradictionDiagnosis: ContradictionDiagnosis | null;
+  readonly stepCounts: readonly number[];
+  readonly warning?: string;
+}
+
+/**
  * Strategy identification.
  */
 export type StrategyType = 'FAST_ENTROPY' | 'BOUNDED_MINIMAX';
@@ -126,6 +148,8 @@ export interface RecommendationResult {
   readonly status?: GuaranteeStatus;
   readonly searchMetrics?: SearchMetrics;
   readonly warning?: string;
+  readonly candidateScope?: CandidateScope;
+  readonly isExpandedFallback?: boolean;
 }
 
 /**

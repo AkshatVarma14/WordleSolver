@@ -1,6 +1,6 @@
 import { getFastRecommendation } from './entropy';
 import { getBoundedSearchRecommendation } from './search';
-import { GuaranteeStatus } from './types';
+import { CandidateScope, GuaranteeStatus } from './types';
 
 /**
  * Result of the unified solving policy.
@@ -20,6 +20,16 @@ export interface UnifiedRecommendation {
   readonly nodesExpanded?: number;
   readonly durationMs: number;
   readonly warning?: string;
+  readonly candidateScope?: CandidateScope;
+  readonly isExpandedFallback?: boolean;
+}
+
+/**
+ * Options configuring policy context and vocabulary scope.
+ */
+export interface UnifiedPolicyOptions {
+  readonly candidateScope?: CandidateScope;
+  readonly isExpandedFallback?: boolean;
 }
 
 // Pre-computed canonical opening recommendation for the standard 2,315-word answer dictionary
@@ -34,7 +44,7 @@ export const CANONICAL_OPENING_EXPECTED = 60.9;
  *
  * Policy Rules:
  * 1. |C| == 0: Contradiction state.
- * 2. |C| == 1: Immediate terminal win (100% certainty).
+ * 2. |C| == 1: Immediate terminal win for primary candidates, or heuristic recommendation for fallback.
  * 3. |C| == 2315 and turnsRemaining == 6: Instant pre-computed canonical opening (<1ms).
  * 4. 2 <= |C| <= 15 and turnsRemaining >= 2: Executes bounded deeper search to verify if a
  *    winning strategy exists within remaining turns. If proved, returns PROVED_WIN.
@@ -44,15 +54,21 @@ export const CANONICAL_OPENING_EXPECTED = 60.9;
  * @param candidates Surviving candidate answer vocabulary
  * @param allowedGuesses Legal guess vocabulary (defaults to candidates)
  * @param turnsRemaining Remaining guess turns (default: 6)
+ * @param options Policy options including candidate scope and fallback status
  * @returns UnifiedRecommendation
  */
 export function getUnifiedRecommendation(
   candidates: readonly string[],
   allowedGuesses: readonly string[] = candidates,
-  turnsRemaining: number = 6
+  turnsRemaining: number = 6,
+  options?: UnifiedPolicyOptions
 ): UnifiedRecommendation {
   const startTime = Date.now();
   const count = candidates.length;
+  const isFallback = Boolean(
+    options?.isExpandedFallback || options?.candidateScope === 'EXPANDED_FALLBACK'
+  );
+  const scope: CandidateScope = isFallback ? 'EXPANDED_FALLBACK' : 'PRIMARY';
 
   // Case 1: Contradiction
   if (count === 0) {
@@ -68,29 +84,38 @@ export function getUnifiedRecommendation(
       warning: 'Contradiction: candidate pool is empty.',
       status: 'UNRESOLVED_RESOURCE_LIMIT',
       durationMs: Date.now() - startTime,
+      candidateScope: scope,
+      isExpandedFallback: isFallback,
     };
   }
 
-  // Case 2: Terminal Win (1 Candidate)
+  // Case 2: Terminal / Solitary Candidate
   if (count === 1) {
     const singleWord = candidates[0]!.toUpperCase();
-    const reason = `Single matching word remaining: '${singleWord}'.`;
+    const reason = isFallback
+      ? `Unverified fallback candidate: '${singleWord}' matches all clues in the expanded dictionary, but is absent from the curated answer list.`
+      : `Single matching word remaining: '${singleWord}'.`;
     return {
       recommendedGuess: singleWord,
       isCandidate: true,
-      isWon: true,
+      isWon: !isFallback, // Only claim 100% won certainty if in curated primary answers
       isContradiction: false,
       candidatesCount: 1,
       reason,
       explanation: reason,
-      status: 'WON',
+      status: isFallback ? 'HEURISTIC' : 'WON',
       worstCaseTurns: 1,
       durationMs: Date.now() - startTime,
+      candidateScope: scope,
+      isExpandedFallback: isFallback,
+      warning: isFallback
+        ? 'Unverified fallback candidate: accepted by Wordle dictionary, but unconfirmed as official NYT answer.'
+        : undefined,
     };
   }
 
   // Case 3: Instant canonical opening for standard 2,315-word answer dictionary (<1ms)
-  if (count === 2315 && turnsRemaining === 6) {
+  if (count === 2315 && turnsRemaining === 6 && !isFallback) {
     const reason = `High information gain (${CANONICAL_OPENING_ENTROPY.toFixed(2)} bits), expected to reduce 2,315 candidates to ~${CANONICAL_OPENING_EXPECTED.toFixed(0)}.`;
     return {
       recommendedGuess: CANONICAL_OPENING_WORD,
@@ -104,11 +129,13 @@ export function getUnifiedRecommendation(
       entropyBits: CANONICAL_OPENING_ENTROPY,
       expectedRemaining: CANONICAL_OPENING_EXPECTED,
       durationMs: Date.now() - startTime,
+      candidateScope: scope,
+      isExpandedFallback: false,
     };
   }
 
-  // Case 4: Selective deeper search for small candidate sets (late game)
-  if (count <= 15 && turnsRemaining >= 2) {
+  // Case 4: Selective deeper search for small candidate sets (late game, primary scope only)
+  if (count <= 15 && turnsRemaining >= 2 && !isFallback) {
     const deeper = getBoundedSearchRecommendation(
       candidates,
       allowedGuesses,
@@ -133,11 +160,13 @@ export function getUnifiedRecommendation(
         entropyBits: deeper.evaluation?.entropyBits,
         expectedRemaining: deeper.evaluation?.expectedRemaining,
         durationMs: Date.now() - startTime,
+        candidateScope: scope,
+        isExpandedFallback: false,
       };
     }
   }
 
-  // Case 5: Routine states -> Fast Shannon Entropy
+  // Case 5: Routine states or fallback states -> Fast Shannon Entropy
   const fast = getFastRecommendation(candidates, allowedGuesses, 1);
   const bestGuess = fast.recommendedGuess;
   const evalMetrics = fast.evaluation;
@@ -145,7 +174,8 @@ export function getUnifiedRecommendation(
   const expectedStr = evalMetrics ? `~${evalMetrics.expectedRemaining.toFixed(0)}` : 'fewer';
   const entropyStr = evalMetrics ? ` (${evalMetrics.entropyBits.toFixed(2)} bits)` : '';
   const probeNote = evalMetrics && !evalMetrics.isCandidate ? ' (exploratory probe)' : '';
-  const reason = `Expected to narrow pool from ${count} to ${expectedStr} words${entropyStr}${probeNote}.`;
+  const poolDescriptor = isFallback ? 'expanded fallback pool' : 'pool';
+  const reason = `Expected to narrow ${poolDescriptor} from ${count} to ${expectedStr} words${entropyStr}${probeNote}.`;
 
   return {
     recommendedGuess: bestGuess,
@@ -159,5 +189,10 @@ export function getUnifiedRecommendation(
     entropyBits: evalMetrics?.entropyBits,
     expectedRemaining: evalMetrics?.expectedRemaining,
     durationMs: Date.now() - startTime,
+    candidateScope: scope,
+    isExpandedFallback: isFallback,
+    warning: isFallback
+      ? 'Recommendations computed from expanded accepted guesses. These words are unverified as official NYT answers.'
+      : undefined,
   };
 }
