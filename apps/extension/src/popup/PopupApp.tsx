@@ -9,6 +9,7 @@ import {
   isValidWord,
 } from '@wordle-solver/solver';
 import { INITIAL_ANSWERS, ALL_VALID_GUESSES } from '../data/words';
+import { extensionContributionService } from '../services/contribution';
 import { GetBoardStateResponse, BoardMutatedNotification } from '../types/messages';
 import './PopupApp.css';
 
@@ -212,6 +213,18 @@ export const PopupApp: React.FC = () => {
 
   // Round completion detection
   const isWon = turns.some((t: TurnRecord) => t.feedback.every((tile: TileFeedback) => tile === 2));
+
+  // Automatic missing-answer contribution upon puzzle win (Stage 9B)
+  useEffect(() => {
+    if (isWon) {
+      void extensionContributionService.evaluateAndSubmit(
+        turns,
+        INITIAL_ANSWERS,
+        ALL_VALID_GUESSES,
+        'extension'
+      );
+    }
+  }, [isWon, turns]);
 
   return (
     <div className="popup-container">

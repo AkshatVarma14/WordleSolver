@@ -201,3 +201,56 @@ export class InvalidFeedbackError extends Error {
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
+
+/**
+ * Review status of a contributed answer candidate in the quarantine queue.
+ */
+export type ContributionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SPAM';
+
+/**
+ * Outcome status of attempting to submit a missing answer contribution.
+ */
+export type ContributionSubmitStatus =
+  | 'SUBMITTED'
+  | 'ALREADY_SUBMITTED'
+  | 'ALREADY_KNOWN'
+  | 'INVALID_WORD'
+  | 'UNCONFIGURED'
+  | 'FAILED';
+
+/**
+ * Minimal payload submitted to the quarantined pending contributions queue.
+ * Contains zero personal information, user tracking identifiers, or game histories.
+ */
+export interface PendingContributionPayload {
+  /** 5-letter uppercase ASCII word */
+  readonly word: string;
+  /** Number of turns taken to win (1-6) */
+  readonly solveTurns: number;
+  /** Source client environment */
+  readonly clientPlatform: 'web' | 'extension';
+  /** Client timestamp in ISO format (informative metadata only, not authoritative proof) */
+  readonly clientTimestamp: string;
+}
+
+/**
+ * Result of submitting a contribution to the pending queue.
+ */
+export interface ContributionSubmitResult {
+  readonly success: boolean;
+  readonly word: string;
+  readonly status: ContributionSubmitStatus;
+  readonly message: string;
+  readonly error?: string;
+}
+
+/**
+ * Provider boundary contract for submitting pending contributions to a backend queue.
+ */
+export interface ContributionQueueProvider {
+  readonly name: string;
+  readonly isConfigured: boolean;
+  submitPendingContribution(
+    contribution: PendingContributionPayload
+  ): Promise<ContributionSubmitResult>;
+}

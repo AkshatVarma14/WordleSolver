@@ -7,7 +7,8 @@ import { RecommendationPanel } from './components/RecommendationPanel';
 import { CandidateViewer } from './components/CandidateViewer';
 import { useWordleBoard } from './hooks/useWordleBoard';
 import { useSolverWorker } from './hooks/useSolverWorker';
-import { INITIAL_ANSWERS } from './data/words';
+import { INITIAL_ANSWERS, ALL_VALID_GUESSES } from './data/words';
+import { webContributionService } from './services/contribution';
 import './App.css';
 
 export const App: React.FC = () => {
@@ -53,6 +54,18 @@ export const App: React.FC = () => {
   useEffect(() => {
     requestSolve(history);
   }, [history, requestSolve]);
+
+  // Automatic missing-answer contribution upon puzzle win (Stage 9B)
+  useEffect(() => {
+    if (isWon) {
+      void webContributionService.evaluateAndSubmit(
+        history,
+        INITIAL_ANSWERS,
+        ALL_VALID_GUESSES,
+        'web'
+      );
+    }
+  }, [isWon, history]);
 
   const handleReset = useCallback(() => {
     resetBoard();
