@@ -205,7 +205,12 @@ export class InvalidFeedbackError extends Error {
 /**
  * Review status of a contributed answer candidate in the quarantine queue.
  */
-export type ContributionStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'SPAM';
+export type ReviewStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+
+/**
+ * Extended contribution review status preserving backwards-compatible states.
+ */
+export type ContributionStatus = ReviewStatus | 'APPROVED' | 'SPAM';
 
 /**
  * Outcome status of attempting to submit a missing answer contribution.
@@ -253,4 +258,92 @@ export interface ContributionQueueProvider {
   submitPendingContribution(
     contribution: PendingContributionPayload
   ): Promise<ContributionSubmitResult>;
+}
+
+/**
+ * Authoritative verification evidence required to promote a pending contribution to VERIFIED.
+ * A client-reported win, repeated submission, user-reported date, or valid guess is NOT evidence.
+ */
+export interface ReviewEvidence {
+  /** Authoritative verification source (e.g. NYT Wordle Review column URL, WordleBot post-game log) */
+  readonly source: string;
+  /** Approximate official NYT puzzle number if known (e.g. 1588) */
+  readonly puzzleNumber?: number;
+  /** Official publication date (YYYY-MM-DD in UTC) */
+  readonly publicationDate?: string;
+  /** Concise verification notes or editorial rationale */
+  readonly notes?: string;
+}
+
+/**
+ * Audit record created by an authorized administrator when reviewing a candidate word.
+ * Records only minimal necessary metadata with zero PII or player game histories.
+ */
+export interface ReviewRecord {
+  /** 5-letter uppercase ASCII word */
+  readonly word: string;
+  /** Resulting review status */
+  readonly status: 'VERIFIED' | 'REJECTED';
+  /** Timestamp when the review action occurred (ISO 8601) */
+  readonly reviewedAt: string;
+  /**
+   * Informative audit trail label identifying the operator (e.g. admin email or CLI handle).
+   * NOTE: This label is for human auditing only and does NOT constitute cryptographic proof of identity.
+   * Real authorization is enforced by Google Cloud IAM evaluating the administrator's OAuth2 bearer token.
+   */
+  readonly reviewerId: string;
+  /** Mandatory evidence reference when status is VERIFIED */
+  readonly evidence?: ReviewEvidence;
+  /** Mandatory rejection note / reason when status is REJECTED */
+  readonly rejectionReason?: string;
+  /** Server document version timestamp for optimistic concurrency control */
+  readonly updateTime?: string;
+}
+
+/**
+ * Result status codes for administrator review operations.
+ */
+export type AdminReviewResultStatus =
+  | 'VERIFIED'
+  | 'REJECTED'
+  | 'ALREADY_VERIFIED'
+  | 'ALREADY_REJECTED'
+  | 'NOT_FOUND'
+  | 'INVALID_TRANSITION'
+  | 'UNAUTHORIZED'
+  | 'UNCONFIGURED'
+  | 'FAILED';
+
+/**
+ * Result of an administrative review operation.
+ */
+export interface AdminReviewResult {
+  readonly success: boolean;
+  readonly word: string;
+  readonly status: AdminReviewResultStatus;
+  readonly message: string;
+  readonly record?: ReviewRecord;
+  readonly error?: string;
+}
+
+/**
+ * Provider interface for administrative review operations.
+ * Must run strictly within an authorized boundary (never in public browser clients).
+ */
+export interface AdminReviewProvider {
+  readonly name: string;
+  readonly isConfigured: boolean;
+  listPendingContributions(): Promise<PendingContributionPayload[]>;
+  getPendingContribution(word: string): Promise<PendingContributionPayload | null>;
+  getReviewRecord(word: string): Promise<ReviewRecord | null>;
+  verifyCandidate(
+    word: string,
+    reviewerId: string,
+    evidence: ReviewEvidence
+  ): Promise<AdminReviewResult>;
+  rejectCandidate(
+    word: string,
+    reviewerId: string,
+    reason: string
+  ): Promise<AdminReviewResult>;
 }
