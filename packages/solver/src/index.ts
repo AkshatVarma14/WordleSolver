@@ -11,3 +11,5 @@ export * from './search';
 export * from './policy';
 export * from './contribution';
 export * from './review';
+export * from './manifest';
+export * from './sync';

@@ -347,3 +347,162 @@ export interface AdminReviewProvider {
     reason: string
   ): Promise<AdminReviewResult>;
 }
+
+/**
+ * Current supported schema version for the trusted dictionary manifest.
+ */
+export const CURRENT_MANIFEST_SCHEMA_VERSION = 1;
+
+/**
+ * Canonical payload fields covered by the manifest integrity checksum.
+ * Used for deterministic canonical serialization.
+ */
+export interface CanonicalManifestPayload {
+  /** Schema specification version (must be CURRENT_MANIFEST_SCHEMA_VERSION) */
+  readonly schemaVersion: number;
+  /** Monotonically increasing dataset version (>= 1) */
+  readonly dictionaryVersion: number;
+  /** RFC 3339 UTC publication timestamp (e.g. 2026-10-26T14:00:00.000Z) */
+  readonly publishedAt: string;
+  /** Canonical, deduplicated, lexicographically sorted array of 5-letter uppercase words */
+  readonly words: readonly string[];
+}
+
+/**
+ * Complete published trusted dictionary manifest contract.
+ * Represents an aggregated, immutable snapshot of administrator-approved answer additions.
+ *
+ * Trust Boundary Invariant:
+ * - The manifest checksum verifies payload data integrity, NOT publisher authenticity.
+ * - Authenticity of publication is governed at the transport/IAM boundary (Stage 9D.4).
+ * - Clients validate checksum and vocabulary constraints before merging into active solver pools.
+ */
+export interface DictionaryManifest extends CanonicalManifestPayload {
+  /** Checksum algorithm identifier (strictly 'sha256') */
+  readonly checksumAlgorithm: 'sha256';
+  /** Hexadecimal SHA-256 digest of the canonical payload */
+  readonly checksum: string;
+  /** Total count of approved words in this manifest (must equal words.length) */
+  readonly wordCount: number;
+  /** Optional human-readable operator/publisher audit label (for audit trail only) */
+  readonly publisher?: string;
+  /** Optional editorial release notes */
+  readonly releaseNotes?: string;
+}
+
+/**
+ * Result of validating a dictionary manifest.
+ */
+export interface ManifestValidationResult {
+  readonly valid: boolean;
+  readonly error?: string;
+  readonly manifest?: DictionaryManifest;
+}
+
+/**
+ * Parameters for creating a dictionary manifest.
+ */
+export interface CreateManifestParams {
+  readonly dictionaryVersion: number;
+  readonly words: readonly string[];
+  readonly schemaVersion?: number;
+  readonly publishedAt?: string;
+  readonly publisher?: string;
+  readonly releaseNotes?: string;
+  readonly validGuesses?: readonly string[];
+}
+
+/**
+ * Parameters for merging bundled answers with approved additions.
+ */
+export interface MergeActiveAnswersParams {
+  readonly bundledAnswers: readonly string[];
+  readonly approvedAnswers?: readonly string[];
+  readonly validGuesses?: readonly string[];
+}
+
+/**
+ * Default synchronization time-to-live: 12 hours in milliseconds.
+ * Normal operations check for remote dictionary updates at most once every 12 hours.
+ */
+export const DEFAULT_DICTIONARY_SYNC_TTL_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Provenance source of the solver's currently active primary answer pool.
+ */
+export type DictionarySource = 'BUNDLED' | 'CACHE' | 'REMOTE';
+
+/**
+ * Status of a dictionary synchronization operation.
+ */
+export type DictionarySyncStatus =
+  | 'SYNCED'
+  | 'CACHE_HIT'
+  | 'OFFLINE_FALLBACK'
+  | 'UNCONFIGURED'
+  | 'FAILED';
+
+/**
+ * Result of a dictionary synchronization operation.
+ */
+export interface DictionarySyncResult {
+  readonly success: boolean;
+  readonly status: DictionarySyncStatus;
+  readonly source: DictionarySource;
+  readonly dictionaryVersion: number;
+  readonly activeWords: readonly string[];
+  readonly wordCount: number;
+  readonly message: string;
+  readonly error?: string;
+  readonly manifest?: DictionaryManifest;
+}
+
+/**
+ * Cached manifest container stored in client persistent storage.
+ */
+export interface CachedManifestRecord {
+  readonly manifest: DictionaryManifest;
+  /** Client local timestamp when the manifest was accepted and cached (epoch ms) */
+  readonly cachedAt: number;
+  /** Schema version of the cache envelope */
+  readonly schemaVersion: 1;
+}
+
+/**
+ * Platform-independent abstraction for reading, writing, and clearing cached manifests.
+ * Keeps browser/extension APIs (localStorage, chrome.storage.local) outside the core solver package.
+ */
+export interface DictionaryManifestCacheStorage {
+  getCachedManifest(): Promise<CachedManifestRecord | null> | CachedManifestRecord | null;
+  setCachedManifest(record: CachedManifestRecord): Promise<void> | void;
+  clearCachedManifest(): Promise<void> | void;
+  getLastSyncTime(): Promise<number | null> | number | null;
+  setLastSyncTime(timestamp: number): Promise<void> | void;
+}
+
+/**
+ * Platform-independent provider for fetching published dictionary manifests from remote storage.
+ */
+export interface DictionaryManifestProvider {
+  readonly name: string;
+  readonly isConfigured: boolean;
+  fetchManifest(): Promise<DictionaryManifest | null>;
+}
+
+/**
+ * Configuration options for the DictionarySyncService.
+ */
+export interface DictionarySyncServiceOptions {
+  /** Static bundled answer dictionary (immutable baseline, e.g. 2,315 words) */
+  readonly bundledAnswers: readonly string[];
+  /** Allowable valid guesses dictionary for defense-in-depth vocabulary validation */
+  readonly validGuesses?: readonly string[];
+  /** Remote manifest fetch provider */
+  readonly manifestProvider?: DictionaryManifestProvider;
+  /** Persistent client cache storage */
+  readonly cacheStorage?: DictionaryManifestCacheStorage;
+  /** Synchronization cache time-to-live in milliseconds (default: 12 hours) */
+  readonly ttlMs?: number;
+  /** Custom clock function for deterministic testing (defaults to Date.now) */
+  readonly nowFn?: () => number;
+}
