@@ -42,20 +42,24 @@ Wordle-Solver/
 │       │   ├── filter.ts     # Candidate state partitioner & candidate reducer
 │       │   ├── entropy.ts    # Shannon entropy & expected remaining candidates
 │       │   ├── search.ts     # Bounded minimax lookahead, memoization & pruning
+│       │   ├── contribution.ts # Missing-answer discovery & telemetry queue
+│       │   ├── review.ts     # Authoritative verification & audit records
+│       │   ├── manifest.ts   # Canonical dictionary manifest & SHA-256 integrity
+│       │   ├── sync.ts       # Runtime-agnostic sync coordinator & offline cache
 │       │   └── types.ts      # Core domain types & guarantee enumerations
 ├── data/
 │   ├── answers.txt           # Secret target dictionary (candidate set A)
 │   └── valid-guesses.txt     # Complete allowed guess dictionary (guess set G)
 ├── tests/                    # Integration and small-state exhaustive test suites
-├── scripts/                  # Simulation runner and performance benchmark scripts
-├── docs/                     # Comprehensive architecture and algorithm documentation
+├── scripts/                  # Simulation runner, benchmark & administrative tools
+├── docs/                     # Comprehensive architecture and developer documentation
 │   ├── REQUIREMENTS.md       # Functional & non-functional requirements
 │   ├── ARCHITECTURE.md       # Monorepo architecture & component interaction
 │   ├── ALGORITHMS.md         # Detailed mathematical derivations & algorithm specs
 │   ├── TESTING.md            # Test harnesses, edge-case specs & small-state proofs
-│   └── ROADMAP.md            # Gated 8-stage implementation roadmap
-├── AGENTS.md                 # Autonomous AI agent operating guidelines
-├── PROJECT_INSTRUCTIONS.md   # Project governance & isolation protocols
+│   ├── CONTRIBUTION_PIPELINE.md # Missing-answer contribution pipeline specification
+│   ├── ADMIN_REVIEW.md       # Manual administrator review workflow & CLI
+│   └── TRUSTED_DICTIONARY_ARCHITECTURE.md # Trusted dictionary lifecycle & sync service
 └── README.md                 # Project presentation & portfolio overview
 ```
 
@@ -82,41 +86,55 @@ Unlike naive solvers that declare a solution impossible if a shallow search fail
 
 ---
 
-## Project Status & Roadmap
+## Project Status & Implementation Milestones
 
-The project is governed by an **8-stage gated roadmap**:
+The project has completed core solver development, interface packaging, rigorous testing (298/298 tests passing), and zero-trust synchronization foundations:
 
-- [x] **Stage 0:** Specification, Architecture, and Project Governance
-- [ ] **Stage 1:** Repository Setup, Monorepo Configuration, and Tested Feedback Engine
-- [ ] **Stage 2:** Candidate Filtering and Fast Information-Gain (Entropy) Strategy
-- [ ] **Stage 3:** Bounded Deeper-Search Strategy with Honest Guarantee Statuses
-- [ ] **Stage 4:** Standalone Responsive Web Application (React + Vite)
-- [ ] **Stage 5:** Chrome Browser Extension (Manifest V3) & Verified DOM Extraction
-- [ ] **Stage 6:** Simulation Harness, Benchmark Analysis, and Comparative Evaluation
-- [ ] **Stage 7:** Documentation, Release Packaging, Deployment, and Viva Defense Preparation
+- [x] **Stage 0: Specification, Architecture, and Project Governance** — Formal problem formulation, game-tree modeling, and information-theoretic design.
+- [x] **Stage 1: Repository Setup, Monorepo Configuration, and Tested Feedback Engine** — High-performance zero-allocation ternary feedback evaluator (`feedback.ts`).
+- [x] **Stage 2: Candidate Filtering and Fast Information-Gain (Entropy) Strategy** — Shannon entropy calculation and candidate state reducer (`filter.ts`, `entropy.ts`).
+- [x] **Stage 3: Bounded Deeper-Search Strategy with Honest Guarantee Statuses** — Minimax turn minimization with memoization and branch-and-bound cutoffs (`search.ts`).
+- [x] **Stage 4: Standalone Responsive Web Application** — Interactive React 19 + Vite interface with Web Worker solving (`apps/web`).
+- [x] **Stage 5: Chrome Browser Extension (Manifest V3)** — Direct Wordle DOM extraction with popup interface and manual fallback (`apps/extension`).
+- [x] **Stage 6: Simulation Harness and Comparative Benchmark** — End-to-end game simulation runner and AISC benchmark evaluation (`scripts/simulate.ts`, `scripts/benchmark.ts`).
+- [x] **Stage 7 & 8: Performance Optimization, Production Polish, and Presentation Freeze** — Layered candidate recovery, sub-millisecond execution, and complete documentation.
+- [ ] **Stage 9: Community-Driven Trusted Dictionary Integration (Offline-First, Zero-Cost)**
+  - [x] **Stage 9B:** Client win detection and quarantined contribution pipeline (`packages/solver/src/contribution.ts`).
+  - [x] **Stage 9C:** Authoritative administrator review workflow and verification CLI (`packages/solver/src/review.ts`, `scripts/admin-review.ts`).
+  - [x] **Stage 9D.1:** Canonical dictionary manifest schema, FIPS 180-4 SHA-256 integrity, and deterministic merge logic (`packages/solver/src/manifest.ts`).
+  - [x] **Stage 9D.2:** Platform-agnostic sync coordinator, cache contracts, 12-hour TTL, and offline fallback (`packages/solver/src/sync.ts`).
+  - [ ] **Stage 9D.3:** Web application and Chrome extension synchronization integration (Planned).
+  - [ ] **Stage 9D.4:** Administrator publication CLI (`scripts/admin-publish.ts`) and production deployment (Planned).
 
 ---
 
-## Setup & Development (Preview)
-
-*Note: Stage 0 is planning and specification only. Dependency installation and build steps will be activated starting in Stage 1.*
+## Setup & Development
 
 ```bash
 # Clone the repository
-git clone https://github.com/<username>/wordle-solver.git
-cd wordle-solver
+git clone https://github.com/AkshatVarma14/WordleSolver.git
+cd WordleSolver
 
-# Install dependencies (from Stage 1)
+# Install dependencies across all workspaces
 npm install
 
-# Run automated test suites
+# Run automated test suites (298 tests)
 npm test
 
-# Launch standalone web application
-npm run dev --workspace=apps/web
+# Type-check all packages
+npm run typecheck
 
-# Build Chrome extension package
-npm run build --workspace=apps/extension
+# Launch standalone web application locally (Vite dev server)
+npm run dev
+
+# Build standalone web application for production
+npm run build:web
+
+# Build Manifest V3 Chrome extension package
+npm run build:extension
+
+# Build all packages and applications
+npm run build
 ```
 
 ---
@@ -124,4 +142,4 @@ npm run build --workspace=apps/extension
 ## Licensing & Provenance
 
 - **Source Code:** Released under the [MIT License](LICENSE).
-- **Word Lists:** Word lists used in `data/` will be verified for open, non-infringing provenance prior to inclusion in Stage 1. No proprietary or copyrighted assets are bundled.
+- **Word Lists:** Word lists bundled in `data/` (`answers.txt` and `valid-guesses.txt`) are curated from standard open-source Wordle word lists with non-infringing provenance. No proprietary or copyrighted assets are bundled.

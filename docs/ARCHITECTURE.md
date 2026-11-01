@@ -48,8 +48,6 @@ Wordle-Solver/
 │   ├── benchmark.ts              # Comparative evaluation harness (AISC metrics)
 │   └── simulate.ts               # End-to-end game simulation runner
 ├── docs/                         # Specification and architecture documents
-├── AGENTS.md
-├── PROJECT_INSTRUCTIONS.md
 ├── README.md
 ├── package.json                  # Root monorepo workspace configuration
 ├── tsconfig.base.json            # Shared TypeScript compiler options

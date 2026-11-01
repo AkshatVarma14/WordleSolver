@@ -431,8 +431,8 @@ To maintain absolute academic integrity during viva and presentation, **do not o
 | **Stage 9D.1 Pure Manifest, SHA-256 & Merge** | **[Implemented and Tested]** | 31 unit tests in `manifest.test.ts` |
 | **Stage 9D.2 Sync Service, 12h TTL, Fallback** | **[Implemented and Tested]** | 27 unit tests in `sync.test.ts` |
 | **Live Cloud Firebase Production Writes** | **[Unconfigured (Zero-Cost Spark)]** | Tested via mock/simulation providers |
-| **Slice 9D.3 UI Sync Wiring & Badges** | **[Planned Future Work]** | Documented in `docs/STAGE_9D_TRUSTED_DICTIONARY_PLAN.md` |
-| **Slice 9D.4 Admin Publication CLI** | **[Planned Future Work]** | Documented in `docs/STAGE_9D_TRUSTED_DICTIONARY_PLAN.md` |
+| **Slice 9D.3 UI Sync Wiring & Badges** | **[Planned Future Work]** | Documented in `docs/TRUSTED_DICTIONARY_ARCHITECTURE.md` |
+| **Slice 9D.4 Admin Publication CLI** | **[Planned Future Work]** | Documented in `docs/TRUSTED_DICTIONARY_ARCHITECTURE.md` |
 
 ---
 

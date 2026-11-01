@@ -1,4 +1,4 @@
-# docs/STAGE_9C_ADMIN_REVIEW.md — Manual Administrator Review Workflow
+# docs/ADMIN_REVIEW.md — Manual Administrator Review Workflow
 
 **Document Version:** 1.0.0
 **Implementation Stage:** Stage 9C
